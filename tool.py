@@ -1,5 +1,9 @@
 import socket
 import threading
+import hashlib
+
+PIECE_LENGTH = 512 * 1024
+
 def get_host_default_interface_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -10,3 +14,4 @@ def get_host_default_interface_ip():
     finally:
         s.close()
     return IP
+
