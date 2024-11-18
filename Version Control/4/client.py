@@ -5,6 +5,21 @@ import sys
 import argparse
 from threading import Thread, Event
 
+# Get client IP
+def get_host_default_interface_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # Not for communication with clients but simply to discover the server’s outward-facing IP address.
+    try:
+       s.connect(('8.8.8.8',1))
+       ip = s.getsockname()[0]
+    except Exception:
+       ip = '127.0.0.1'
+    finally:
+       s.close()
+    return ip
+
+client_ip = get_host_default_interface_ip()
+client_port = 5000
+
 client_conn_list = [] # Tracker's Client conn List
 client_addr_list = [] # Current clients connected to Tracker
 connected_client_conn_list = [] # Current clients conn connected to this client
@@ -35,19 +50,22 @@ def list_connected_clients():
 def new_connection(conn, addr):
     conn.settimeout(1) # Setting timeout to check the stop_event
     
-    # Record the new client's metainfo
+    # Receive peer port separately
+    string_peer_port = conn.recv(1024).decode("utf-8")
+    peer_port = int(string_peer_port)
+
+    # Record the new peer metainfo
     connected_client_conn_list.append(conn)
-    connected_client_addr_list.append(addr)
+    connected_client_addr_list.append((addr[0], peer_port))
 
-
-    print(f"Client {addr} connected.")
+    print(f"Peer ('{addr[0]}', {peer_port}) connected.")
 
     while not stop_event.is_set():
         try:
             data = conn.recv(1024)
             command = data.decode("utf-8")
-            if not data:
-                break
+            # if not data:
+            #     break
             #TODO: process at client side
         except socket.timeout:
             continue
@@ -57,11 +75,79 @@ def new_connection(conn, addr):
 
     conn.close()
     connected_client_conn_list.remove(conn)
-    connected_client_addr_list.remove(addr)
-    print(f"Client {addr} removed.")
+    connected_client_addr_list.remove((addr[0], peer_port))
+    print(f"Peer ('{addr[0]}', {peer_port}) removed.")
 
-# New connection for client
-def client_program(client_ip, client_port):
+def update_client_list(tracker_socket):
+    # Create command for the Tracker
+    command = "update_client_list"
+    tracker_socket.send(command.encode("utf-8"))
+    print("Client List requested.")
+
+    # Receive the clients list from the Tracker
+    pickle_client_addr_list = tracker_socket.recv(4096)
+    client_addr_list = pickle.loads(pickle_client_addr_list)
+    print("Client List received.")
+
+    return client_addr_list, tracker_socket
+
+# Connect to the Tracker
+def connect_to_tracker(server_host, server_port):
+    try:
+        tracker_socket = socket.socket()
+        tracker_socket.settimeout(5) # Setting timeout to check the stop_event
+        tracker_socket.connect((server_host, server_port))
+        print(f"Tracker ('{server_host}', {server_port}) connected.")
+    except ConnectionRefusedError:
+        print(f"Could not connect to Tracker {server_host}:{server_port}")
+
+    # Send client port separately
+    string_client_port = str(client_port)
+    tracker_socket.send(string_client_port.encode("utf-8"))
+    time.sleep(1)
+
+    return update_client_list(tracker_socket)
+
+# Connect to other peers
+def connect_to_all_peers():
+    for peer in client_addr_list:
+        if peer[0] == client_ip and peer[1] == client_port:
+            continue
+        connect_to_peer(peer[0], peer[1])
+
+# Connect to one specific peer
+def connect_to_peer(peer_ip, peer_port):
+    try:
+        if peer_ip == client_ip and peer_port == client_port:
+            print("Cannot connect to self.")
+            return
+        peer_socket = socket.socket()
+        peer_socket.settimeout(5) # Setting timeout to check the stop_event
+        peer_socket.connect((peer_ip, peer_port))
+        print(f"Connected to peer {peer_ip}:{peer_port}")
+    except ConnectionRefusedError:
+        print(f"Could not connect to peer {peer_ip}:{peer_port}")
+    
+    # Send peer port separately
+    string_peer_port = str(peer_port)
+    peer_socket.send(string_peer_port.encode("utf-8"))
+    time.sleep(1)
+
+# Disconnect to other peers
+def disconnect_to_all_peers():
+    for conn, addr in zip(connected_client_conn_list, connected_client_addr_list):
+        try:
+            conn.close()  # Close the connection to the peer
+            print(f"Disconnected from peer ('{addr[0]}', {addr[1]})")
+        except Exception as e:
+            print(f"Error disconnecting from peer ('{addr[0]}', {addr[1]}): {e}")
+    
+    # Clear the client_list after closing all connections
+    connected_client_conn_list.clear()
+    connected_client_addr_list.clear()
+    print("All peers disconnected.")
+
+def client_program():
     print(f"Client IP: {client_ip} | Client Port: {client_port}")
     print("Listening on: {}:{}".format(client_ip, client_port))
     client_socket = socket.socket()
@@ -84,76 +170,6 @@ def client_program(client_ip, client_port):
     
     client_socket.close()
     print(f"Client {client_ip} stopped.")
-
-
-def update_client_list(tracker_socket):
-    # Create command for the Tracker
-    command = "update_client_list"
-    tracker_socket.send(command.encode("utf-8"))
-    print("Client List requested.")
-
-    # Receive the clients list from the Tracker
-    pickle_client_addr_list = tracker_socket.recv(4096)
-    client_addr_list = pickle.loads(pickle_client_addr_list)
-    print("Client List received.")
-
-    return client_addr_list, tracker_socket
-
-# Connect to the Tracker
-def connect_to_tracker(server_host, server_port):
-    tracker_socket = socket.socket()
-    tracker_socket.settimeout(5) # Setting timeout to check the stop_event
-    tracker_socket.connect((server_host, server_port))
-    print(f"Tracker ('{server_host}', {server_port}) connected.")
-
-    return update_client_list(tracker_socket)
-
-# Connect to other peers
-def connect_to_all_peers():
-    for client in client_addr_list:
-        try:
-            if client[0] == get_host_default_interface_ip():
-                continue
-            peer_socket = socket.socket()
-            peer_socket.connect((client[0], client_port))
-            print(f"Connected to peer {client[0]}:{client_port}")
-        except ConnectionRefusedError:
-            print(f"Could not connect to peer {client[0]}:{client_port}")
-
-# Connect to one specific peer
-def connect_to_peer(peer_ip, peer_port):
-    if peer_ip == get_host_default_interface_ip():
-        print("Cannot connect to self.")
-        return
-    peer_socket = socket.socket()
-    peer_socket.connect((peer_ip, peer_port))
-    print(f"Connected to peer {peer_ip}:{peer_port}")
-
-# Disconnect to other peers
-def disconnect_to_all_peers():
-    for conn, addr in zip(connected_client_conn_list, connected_client_addr_list):
-        try:
-            conn.close()  # Close the connection to the peer
-            print(f"Disconnected from peer {addr}")
-        except Exception as e:
-            print(f"Error disconnecting from peer {addr}: {e}")
-    
-    # Clear the client_list after closing all connections
-    connected_client_conn_list.clear()
-    connected_client_addr_list.clear()
-    print("All peers disconnected.")
-
-# Get client IP
-def get_host_default_interface_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # Not for communication with clients but simply to discover the server’s outward-facing IP address.
-    try:
-       s.connect(('8.8.8.8',1))
-       ip = s.getsockname()[0]
-    except Exception:
-       ip = '127.0.0.1'
-    finally:
-       s.close()
-    return ip
 
 def shutdown_client():
     stop_event.set()
@@ -210,11 +226,8 @@ def client_terminal():
         print("Client Terminal exited.")
 
 if __name__ == "__main__":
-    client_ip = get_host_default_interface_ip()
-    client_port = 5000
-
     # Start client
-    thread_client = Thread(target=client_program, args=(client_ip, client_port))
+    thread_client = Thread(target=client_program)
     thread_client.start()
 
     # Start terminal
