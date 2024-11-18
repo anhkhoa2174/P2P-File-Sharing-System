@@ -4,25 +4,25 @@ import sys
 import time
 from threading import Thread, Event
 
-client_conn_list = [] # Tracker's Client conn List
-client_addr_list = [] # Tracker's Client addr List
+client_list = [] # Tracker's Client List
 stop_event = Event()
 nconn_threads = []
 
 # List of clients available
 def list_clients():
-    if client_addr_list:
+    if client_list:
         print("Connected Clients:")
-        for i, client in enumerate(client_addr_list, start=1):
+        for i, client in enumerate(client_list, start=1):
             print(f"{i}. IP: {client[0]}, Port: {client[1]}")
     else:
         print("No clients are currently connected.")
 
 # Send the list of clients available to the newly connected client
 def update_client_list(conn):
+    print(client_list)
     print("Client List being sent...")
-    pickle_client_addr_list = pickle.dumps(client_addr_list)
-    conn.send(pickle_client_addr_list)
+    pickle_client_list = pickle.dumps(client_list)
+    conn.send(pickle_client_list)
     print("Client List sent.")
 
 # New connection for newly connected client
@@ -30,9 +30,7 @@ def new_connection(conn, addr):
     conn.settimeout(1) # Setting timeout to check the stop_event
     
     # Record the new client's metainfo
-
-    client_conn_list.append(conn)
-    client_addr_list.append(addr)
+    client_list.append(addr)
 
     print(f"Client {addr} added.")
 
@@ -54,8 +52,7 @@ def new_connection(conn, addr):
             break
 
     conn.close()
-    client_conn_list.remove(conn)
-    client_addr_list.remove(addr)
+    client_list.remove(addr)
     print(f"Client {addr} removed.")
 
 def server_program(hostip, port):

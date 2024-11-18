@@ -60,8 +60,8 @@ def connect_to_tracker(server_host, server_port):
     print(f"Client IP: {client_ip}, Client Port: {client_port}")
 
     # Receive the clients list from the Tracker
-    client_list = tracker_socket.recv(4096)
-    client_list = pickle.loads(client_list)
+    pickle_client_list = tracker_socket.recv(4096)
+    client_list = pickle.loads(pickle_client_list)
     
     return client_list
 

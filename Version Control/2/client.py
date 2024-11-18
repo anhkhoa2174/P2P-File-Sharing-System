@@ -5,27 +5,25 @@ import sys
 import argparse
 from threading import Thread, Event
 
-client_conn_list = [] # Tracker's Client conn List
-client_addr_list = [] # Current clients connected to Tracker
-connected_client_conn_list = [] # Current clients conn connected to this client
-connected_client_addr_list = [] # Current clients addr connected to this client
+client_list = [] # Current clients connected to Tracker
+connected_client_list = [] # Current clients connected to this client
 stop_event = Event()
 nconn_threads = []
 
 # List of clients connected to Tracker
 def list_clients():
-    if client_addr_list:
+    if client_list:
         print("Connected Clients:")
-        for i, client in enumerate(client_addr_list, start=1):
+        for i, client in enumerate(client_list, start=1):
             print(f"{i}. IP: {client[0]}, Port: {client[1]}")
     else:
         print("No clients are currently connected.") 
 
 # List of clients connected to this client
 def list_connected_clients():
-    if connected_client_addr_list:
+    if connected_client_list:
         print("Connected Clients:")
-        for i, client in enumerate(connected_client_addr_list, start=1):
+        for i, client in enumerate(connected_client_list, start=1):
             print(f"{i}. IP: {client[0]}, Port: {client[1]}")
     else:
         print("No clients are currently connected.") 
@@ -36,9 +34,7 @@ def new_connection(conn, addr):
     conn.settimeout(1) # Setting timeout to check the stop_event
     
     # Record the new client's metainfo
-    connected_client_conn_list.append(conn)
-    connected_client_addr_list.append(addr)
-
+    connected_client_list.append(addr)
 
     print(f"Client {addr} connected.")
 
@@ -56,8 +52,7 @@ def new_connection(conn, addr):
             break
 
     conn.close()
-    connected_client_conn_list.remove(conn)
-    connected_client_addr_list.remove(addr)
+    client_list.remove(addr)
     print(f"Client {addr} removed.")
 
 # New connection for client
@@ -93,11 +88,11 @@ def update_client_list(tracker_socket):
     print("Client List requested.")
 
     # Receive the clients list from the Tracker
-    pickle_client_addr_list = tracker_socket.recv(4096)
-    client_addr_list = pickle.loads(pickle_client_addr_list)
+    pickle_client_list = tracker_socket.recv(4096)
+    client_list = pickle.loads(pickle_client_list)
     print("Client List received.")
 
-    return client_addr_list, tracker_socket
+    return client_list, tracker_socket
 
 # Connect to the Tracker
 def connect_to_tracker(server_host, server_port):
@@ -109,39 +104,19 @@ def connect_to_tracker(server_host, server_port):
     return update_client_list(tracker_socket)
 
 # Connect to other peers
-def connect_to_all_peers():
-    for client in client_addr_list:
+def connect_to_all_peers(client_list):
+    for client in client_list:
         try:
-            if client[0] == get_host_default_interface_ip():
-                continue
             peer_socket = socket.socket()
             peer_socket.connect((client[0], client_port))
             print(f"Connected to peer {client[0]}:{client_port}")
         except ConnectionRefusedError:
             print(f"Could not connect to peer {client[0]}:{client_port}")
 
-# Connect to one specific peer
 def connect_to_peer(peer_ip, peer_port):
-    if peer_ip == get_host_default_interface_ip():
-        print("Cannot connect to self.")
-        return
     peer_socket = socket.socket()
     peer_socket.connect((peer_ip, peer_port))
     print(f"Connected to peer {peer_ip}:{peer_port}")
-
-# Disconnect to other peers
-def disconnect_to_all_peers():
-    for conn, addr in zip(connected_client_conn_list, connected_client_addr_list):
-        try:
-            conn.close()  # Close the connection to the peer
-            print(f"Disconnected from peer {addr}")
-        except Exception as e:
-            print(f"Error disconnecting from peer {addr}: {e}")
-    
-    # Clear the client_list after closing all connections
-    connected_client_conn_list.clear()
-    connected_client_addr_list.clear()
-    print("All peers disconnected.")
 
 # Get client IP
 def get_host_default_interface_ip():
@@ -162,7 +137,7 @@ def shutdown_client():
     print("All threads have been closed.")
 
 def client_terminal():
-    global client_addr_list
+    global client_list
     print("Client Terminal started.")
     try:
         while True:
@@ -175,7 +150,7 @@ def client_terminal():
                     server_host = parts[1]
                     try:
                         server_port = int(parts[2])
-                        client_addr_list, tracker_socket = connect_to_tracker(server_host, server_port)
+                        client_list, tracker_socket = connect_to_tracker(server_host, server_port)
                     except ValueError:
                         print("Invalid port.")
                 else:
