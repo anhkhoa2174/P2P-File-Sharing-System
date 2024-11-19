@@ -1,9 +1,10 @@
 import socket
-import threading
-import hashlib
+from threading import Thread, Event
 
 PIECE_LENGTH = 512 * 1024
-
+client_addr_list = [] # Current clients connected to Tracker
+stop_event = Event()
+CODE = 'utf-8'
 def get_host_default_interface_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:

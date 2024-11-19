@@ -3,7 +3,7 @@ import math
 import tool
 import hashlib
 import os
-from tool import PIECE_LENGTH
+from tool import *
 
 def split_into_pieces(file_path, piece_length):
 #    """Split the file into pieces of the given length and return a list of pieces."""
@@ -29,7 +29,7 @@ class Metainfo:
         self.length =  os.path.getsize(path)
         self.pieceLength = PIECE_LENGTH
         pieces = split_into_pieces(path, self.pieceLength)
-        self.pieces = b''.join(sha1_hash(piece) for piece in pieces)
+        self.pieces = b''.join(sha1_hash(piece) for piece in pieces).hex()
         self.numOfPieces = math.ceil(self.length/self.pieceLength)
         
       
