@@ -12,21 +12,20 @@ import sys
 PEER_IP = get_host_default_interface_ip()
 LISTEN_DURATION = 5
 PORT_FOR_PEER= random.randint(12600, 22000)
-stop_event = Event()
 
 class peer:
     def __init__(self):
         self.peerIP = PEER_IP # peer's IP
         self.peerID = PORT_FOR_PEER # peer' ID
-        self.portForPeer = PORT_FOR_PEER # port for peer conection with other peers
-        self.portForTracker = PORT_FOR_PEER + 1 # port for peer connection with tracker
+        self.portForPeer = PORT_FOR_PEER #* port for peer listening conection with other peers
+        self.portForTracker = PORT_FOR_PEER + 1 # *?  port for peer listening connection with tracker. Should this be used ?
         self.lock = threading.Lock()
         self.fileInRes = []
         self.isRunning = False
         self.peerDownloadingFrom = []
         self.server = []
 
-         # A socket for listening from other peers in the network
+        # A socket for listening from other peers in the network
         self.peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.peerSocket.bind((self.peerIP, self.portForPeer))
 
@@ -185,8 +184,8 @@ class peer:
                 print("Error occured!")
                 break
 
-        peer_socket.close()
-        self.connected_client_conn_list.remove(peer_socket)
+        peer_socket.close() #* Close the socket that connects with the corresponding peer
+        self.connected_client_conn_list.remove(peer_socket) 
         self.connected_client_addr_list.remove((peer_ip, peer_port))
         print(f"Peer ('{peer_ip}', {peer_port}) removed.")
 
@@ -210,7 +209,7 @@ class peer:
             print(f"Could not connect to peer {peer_ip}:{peer_port}.")
     
         # Send peer port separately
-        string_peer_port = str(self.portForPeer)
+        string_peer_port = str(peer_port)
         peer_socket.send(string_peer_port.encode("utf-8"))
         
         # Create thread
@@ -231,21 +230,21 @@ class peer:
 
         while not stop_event.is_set():
             try:
-                peer_socket, addr = self.peerSocket.accept()
+                peer_socket, addr = self.peerSocket.accept() #* peer_socket is the socket to exchange data ( which is the port to connect to the other peer) with the connected peer, different from peerSocket which is only the socket for connecting with peers
                 peer_ip = addr[0]
 
                 # Receive peer port separately
-                string_peer_port = peer_socket.recv(1024).decode("utf-8")
-                peer_port = int(string_peer_port)
+                string_peer_port = peer_socket.recv(1024).decode("utf-8") #* Receive the port that the peer just connected with us sent us
+                peer_port = int(string_peer_port) #* The port that the peer sent through socket
 
                 # Create thread
-                thread_peer = Thread(target=self.new_conn_peer, args=(peer_socket, peer_ip, peer_port))
+                thread_peer = Thread(target=self.new_conn_peer, args=(peer_socket, peer_ip, peer_port)) 
                 thread_peer.start()
                 self.new_conn_thread_list.append(thread_peer)
 
                 # Record the new peer metainfo
-                self.connected_client_conn_list.append(peer_socket)
-                self.connected_client_addr_list.append((peer_ip, peer_port))
+                self.connected_client_conn_list.append(peer_socket) #* Save each socket for connection with each peer
+                self.connected_client_addr_list.append((peer_ip, peer_port)) #* Save the IP and the port of connected peer
             except socket.timeout:
                 continue
             except Exception as e:

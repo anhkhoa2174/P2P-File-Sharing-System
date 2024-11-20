@@ -2,119 +2,173 @@ import socket
 import pickle
 import sys
 import time
+import threading
 from threading import Thread, Event
+from tool import *
 
-def get_host_default_interface_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # Not for communication with clients but simply to discover the server’s outward-facing IP address.
-    try:
-       s.connect(('8.8.8.8',1))
-       ip = s.getsockname()[0]
-    except Exception:
-       ip = '127.0.0.1'
-    finally:
-       s.close()
-    return ip
 
-hostip = get_host_default_interface_ip()
-port = 22236
-
-client_conn_list = [] # Tracker's Client conn List
-client_addr_list = [] # Tracker's Client addr List
+SERVER_IP = get_host_default_interface_ip()
+SERVER_PORT = 22236
 stop_event = Event()
-nconn_threads = []
 
-# List of clients available
-def list_clients():
-    if client_addr_list:
-        print("Connected Clients:")
-        for i, client in enumerate(client_addr_list, start=1):
-            print(f"{i}. IP: {client[0]}, Port: {client[1]}")
-    else:
-        print("No clients are currently connected.")
+class tracker:
+    def __init__(self):
+        self.port = SERVER_PORT
+        self.ip = SERVER_IP
+        self.id = SERVER_PORT
 
-# Send the list of clients available to the newly connected client
-def update_client_list(conn):
-    print("Client List being sent...")
-    pickle_client_addr_list = pickle.dumps(client_addr_list)
-    conn.send(pickle_client_addr_list)
-    print("Client List sent.")
+        self.running = True
 
-# New connection for newly connected client
-def new_connection(conn, addr):
-    conn.settimeout(1) # Setting timeout to check the stop_event
+        self.client_info = {} #* A dictionary for storing the conenction of each client and the files they have
+        self.lock = threading.Lock()
+        self.client_conn_list = []
+        self.client_addr_list = []
+        self.nconn_threads = []
+
+    # List of connected clients available
+    def list_clients(self):
+        if self.client_addr_list:
+            print("Connected Clients:")
+            for i, client in enumerate(self.client_addr_list, start=1):
+                print(f"{i}. IP: {client[0]}, Port: {client[1]}")
+        else:
+            print("No clients are currently connected.")
+
+    # FIX
+    # Send the client list to the connected client
+    def update_client_list(self, client_socket):
+        print("Client list being sent...")
+
+        header = "update_client_list:"
+        pickle_client_addr_list = pickle.dumps(self.client_addr_list)
+        message = header.encode("utf-8") + pickle_client_addr_list
+        client_socket.sendall(message)
     
-    # Receive client port separately
-    string_client_port = conn.recv(1024)
-    client_port = int(string_client_port.decode("utf-8"))
+        print("Client list sent.")
 
-    # Record the new client metainfo
-    client_conn_list.append(conn)
-    client_addr_list.append((addr[0], client_port))
+                
+    # New connection for connected client
+    def new_conn_client(self, client_socket, client_ip, client_port):
+        print(f"Connected to Client ('{client_ip}', {client_port}).")
 
-    print(f"Client ('{addr[0]}', {client_port}) added.")
+        client_socket.settimeout(5)
+        while not stop_event.is_set():
+            try:
+                data = client_socket.recv(4096)
+                if not data:
+                    break
 
-    while not stop_event.is_set():
-        try:
-            data = conn.recv(1024)
-            command = data.decode("utf-8")
-            if not data:
+                command = data[:(data.find(b":"))].decode("utf-8")
+                if command == "update_client_list":
+                    self.update_client_list(client_socket)
+                elif command == "disconnect":
+                    break
+            except socket.timeout:
+                continue
+            except Exception as e:
+                print(f"Error occured: {e}")
                 break
-            elif command == "update_client_list":
-                update_client_list(conn)
-            elif command == "disconnect":
+
+        client_socket.close()
+        self.client_conn_list.remove(client_socket)
+        self.client_addr_list.remove((client_ip, client_port))
+        print(f"Client ('{client_ip}', {client_port}) disconnected.")
+
+
+    def server_program(self):
+        print(f"Tracker IP: {self.ip} | Tracker Port: {self.port}")
+        print("Listening on: {}:{}".format(self.ip, self.port))
+        serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        serversocket.settimeout(5)
+
+        serversocket.bind((self.ip, self.port))
+        serversocket.listen(10)
+
+        while not stop_event.is_set():
+            try:
+                client_socket, addr = serversocket.accept()
+                client_ip = addr[0]
+
+                # Receive client port separately
+                string_client_port = client_socket.recv(1024)
+                client_port = int(string_client_port.decode("utf-8"))
+
+                # Create thread
+                thread_client = Thread(target=self.new_conn_client, args=(client_socket, client_ip, client_port))
+                thread_client.start()
+                self.nconn_threads.append(thread_client)
+
+                # Record the new client metainfo
+                self.client_conn_list.append(client_socket)
+                self.client_addr_list.append((client_ip, client_port))
+            except socket.timeout:
+                continue
+            except Exception as e:
+                print(f"Server error: {e}")
                 break
-            #TODO: process at tracker side
-        except socket.timeout:
-            continue
-        except Exception:
-            print("Error occured!")
-            break
-
-    conn.close()
-    client_conn_list.remove(conn)
-    client_addr_list.remove((addr[0], client_port))
-    print(f"Client ('{addr[0]}', {client_port}) removed.")
-
-def server_program():
-    print(f"Tracker IP: {hostip} | Tracker Port: {port}")
-    print("Listening on: {}:{}".format(hostip,port))
-    serversocket = socket.socket()
-    serversocket.settimeout(1) # Setting timeout to check the stop_event
-
-    serversocket.bind((hostip, port))
-    serversocket.listen(10)
-
-    while not stop_event.is_set():
-        try:
-            conn, addr = serversocket.accept()
-            nconn = Thread(target=new_connection, args=(conn, addr))
-            nconn.start()
-            nconn_threads.append(nconn)
-        except socket.timeout:
-            continue
-        except Exception as e:
-            print(f"Server error: {e}")
-            break
     
-    serversocket.close()
-    print("Tracker server stopped.")
+        serversocket.close()
+        print("Tracker server stopped.")
 
-def shutdown_server():
-    stop_event.set()
-    for nconn in nconn_threads:
-        nconn.join()
-    print("All threads have been closed.")
+    def disconnect_from_client(self, client_ip, client_port):
+        if (client_ip, client_port) in client_addr_list:
+            index = self.client_addr_list.index((client_ip, client_port))
+            conn = self.client_conn_list[index]
+        else:
+            print(f"No connection found with client {client_ip}:{client_port}.")
+            return
 
-def tracker_terminal():
-    print("Tracker Terminal started.") 
+        header = "disconnect:"
+        message = header.encode("utf-8")
+        conn.sendall(message)
+
+        print(f"Disconnect requested to client ('{client_ip}', {client_port}).")
+
+    def disconnect_from_all_clients(self):
+        for addr in client_addr_list:
+            self.disconnect_from_client(addr[0], addr[1])
+    
+        print("All clients have been disconnected.")
+        
+    def shutdown_server(self):
+        stop_event.set()
+        for nconn in self.nconn_threads:
+            nconn.join(timeout=5)
+        print("All threads have been closed.")
+
+
+
+
+
+if __name__ == "__main__":
+
+    # Start server
+    tracker_instance = tracker()
     try:
+        thread_tracker = Thread(target=tracker_instance.server_program)
+        thread_tracker.start()
+
         while True:
             command = input("Tracker> ")
             if command == "test":
                 print("The program is running normally.")
-            elif command == "list":
-                list_clients()
+            elif command == "list_clients":
+                tracker_instance.list_clients()
+            elif command.startswith("disconnect_from_client"):
+                parts = command.split()
+                if len(parts) == 3:
+                    client_ip = parts[1]
+                    try:
+                        client_port = int(parts[2])
+                        tracker_instance.disconnect_from_client(client_ip, client_port)
+                    except ValueError:
+                        print("Invalid port.")
+                else:
+                    print("Usage: disconnect_from_client <IP> <Port>")
+            elif command == "disconnect_from_all_clients":
+                tracker_instance.disconnect_from_all_clients()
             elif command == "exit":
+                tracker_instance.disconnect_from_all_clients()
                 print("Exiting Tracker Terminal...")
                 break
             else:
@@ -124,19 +178,8 @@ def tracker_terminal():
     finally:
         print("Tracker Terminal exited.")
 
-if __name__ == "__main__":
-    #hostname = socket.gethostname()
 
-    # Start server
-    thread_server = Thread(target=server_program)
-    thread_server.start()
-
-    # Start terminal
-    tracker_terminal()
-
-    shutdown_server()
-    thread_server.join()
+    tracker_instance.shutdown_server()
+    thread_tracker.join(timeout=5)
 
     sys.exit(0)
-
-
