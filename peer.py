@@ -8,6 +8,7 @@ import time
 import pickle
 from threading import Thread
 import sys
+import json
 
 PEER_IP = get_host_default_interface_ip()
 LISTEN_DURATION = 5
@@ -25,7 +26,6 @@ class peer:
         self.isRunning = False
         self.peerDownloadingFrom = []
         self.server = []
-
          # A socket for listening from other peers in the network
         self.peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.peerSocket.bind((self.peerIP, self.portForPeer))
@@ -48,37 +48,36 @@ class peer:
     
     def getFileInRes(self) -> list:
         ownRespository = os.listdir("peer_respo")
-        files = []
         if len(ownRespository) == 0:
-            return files
+            return self.fileInRes
         else: 
             for name in ownRespository:
                 if(os.path.getsize("peer_respo/" + name) == 0):
                     os.remove("peer_respo/" + name)
                 else:
-                    files.append(File(self.peerOwnRes+name))
+                    self.fileInRes.append(File("peer_respo/"+name))
 
 
-                    # # Testing creating metainfo
-                    # file_obj = File("peer_respo/"+name)
+                    # Testing creating metainfo
+                    file_obj = File("peer_respo/"+name)
                     # files.append(file_obj)
-                    # # Get metainfo and save into a text file
-                    # self.save_metainfo_to_txt(file_obj.meta_info)
-        return files
+                    # Get metainfo and save into a text file
+                    self.save_metainfo_to_txt(file_obj.meta_info)
+        return  self.fileInRes
     
-    # def save_metainfo_to_txt(self, metainfo):
-    #     # The path to txt file that saves metainfo of a specific file
-    #     file_path = os.path.join(self.peerOwnRes, f"{metainfo.fileName}_metainfo.txt")
+    def save_metainfo_to_txt(self, metainfo):
+        # The path to txt file that saves metainfo of a specific file
+        file_path = os.path.join(self.peerOwnRes, f"{metainfo.fileName}_metainfo.txt")
         
-    #     # Write metainfo into file
-    #     with open(file_path, "w", encoding="utf-8") as file:
-    #         file.write(f"File Name: {metainfo.fileName}\n")
-    #         file.write(f"File Length: {metainfo.length} bytes\n")
-    #         file.write(f"Piece Length: {metainfo.pieceLength} bytes\n")
-    #         file.write(f"Number of Pieces: {int(metainfo.numOfPieces)}\n")
-    #         file.write(f"SHA-1 Hashes of Pieces: {metainfo.pieces.hex()}\n")
+        # Write metainfo into file
+        with open(file_path, "w", encoding="utf-8") as file:
+            file.write(f"File Name: {metainfo.fileName}\n")
+            file.write(f"File Length: {metainfo.length} bytes\n")
+            file.write(f"Piece Length: {metainfo.pieceLength} bytes\n")
+            file.write(f"Number of Pieces: {int(metainfo.numOfPieces)}\n")
+            file.write(f"SHA-1 Hashes of Pieces: {metainfo.pieces}\n")
         
-    #     print(f"Metainfo for {metainfo.fileName} has been saved to {file_path}")
+        print(f"Metainfo for {metainfo.fileName} has been saved to {file_path}")
     
     # List of clients connected to the Tracker
     def list_clients(self):
@@ -295,6 +294,52 @@ class peer:
             nconn.join(timeout=5)
         print("All threads have been closed.") 
 
+    def send_metainfo_to_tracker(self, server_host, server_port): #! WORKING ON THIS 
+        if (server_host, server_port) in self.connected_tracker_addr_list:
+            index = self.connected_tracker_addr_list.index((server_host, server_port))
+            conn = self.connected_tracker_conn_list[index]
+        else:
+            print(f"No connection found with Tracker {server_host}:{server_port}.")
+            return
+    
+        
+        for file in self.fileInRes:
+            metainfo = file.meta_info  
+
+            metainfo_dict = {
+                'file_name': metainfo.fileName,
+                'file_size': metainfo.length,
+                'piece_length': metainfo.pieceLength,
+                'pieces': metainfo.pieces,
+                'num_of_pieces': metainfo.numOfPieces,
+            }
+
+            try:
+                header = "send_metainfo:".encode("utf-8")
+                header += pickle.dumps(metainfo_dict)
+                conn.sendall(header)
+                time.sleep(0.1)
+                print(f"Sent Metainfo for {metainfo.fileName} to tracker.")
+            except Exception as e:
+                print(f"Failed to send Metainfo for {metainfo.fileName} to tracker: {e}")
+
+    def find_peer_have(self, pieces, server_host, server_port): #! WORKING ON THIS 
+        if (server_host, server_port) in self.connected_tracker_addr_list:
+            index = self.connected_tracker_addr_list.index((server_host, server_port))
+            conn = self.connected_tracker_conn_list[index]
+        else:
+            print(f"No connection found with Tracker {server_host}:{server_port}.")
+            return
+
+        try:
+            header = "find_peer_have:".encode("utf-8")
+            header += pickle.dumps(pieces)
+            conn.sendall(header)
+            time.sleep(0.1)
+            print(f"Asking tracker to find peer list with magnet text {pieces}.")
+        except Exception as e:
+            print(f"Failed to ask for tracker to find peer list with magnet text {pieces}.: {e}")
+
 
 if __name__ == "__main__":
     my_peer = peer()
@@ -360,6 +405,14 @@ if __name__ == "__main__":
                     print("Usage: disconnect_from_peer <IP> <Port>")
             elif command == "disconnect_from_all_peers":
                 my_peer.disconnect_from_all_peers()  
+            elif command == "get_metainfo":
+                my_peer.getFileInRes()
+            elif command == "send_metainfo": #! WORKING ON THIS
+                my_peer.send_metainfo_to_tracker(server_host, server_port)
+            elif command == "find_peer_have": #! WORKING ON THIS
+                pieces = input("Enter magnet text: ")
+                #pieces = sha1_hash(pieces.encode('utf-8')).hex()
+                my_peer.find_peer_have(pieces, server_host, server_port)
             elif command == "exit":
                 my_peer.disconnect_from_tracker(server_host, server_port)
                 my_peer.disconnect_from_all_peers()

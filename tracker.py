@@ -5,7 +5,7 @@ import time
 import threading
 from threading import Thread, Event
 from tool import *
-
+import json
 
 SERVER_IP = get_host_default_interface_ip()
 SERVER_PORT = 22236
@@ -63,6 +63,12 @@ class tracker:
                     self.update_client_list(client_socket)
                 elif command == "disconnect":
                     break
+                elif command == "send_metainfo": #! WORKING ON THIS
+                    metainfo_data = pickle.loads(data[len("send_metainfo:"):])
+                    self.receive_metainfo(metainfo_data, client_ip, client_port)
+                elif command == "find_peer_have":
+                    pieces = pickle.loads(data[len("find_peer_have:"):])
+                    self.find_peer_have(pieces)
             except socket.timeout:
                 continue
             except Exception as e:
@@ -136,7 +142,39 @@ class tracker:
             nconn.join(timeout=5)
         print("All threads have been closed.")
 
+    def receive_metainfo(self, metainfo_dict, client_ip, client_port): #! WORKING ON THIS
+        print(f"Receiving  metainfo from client {client_ip}:{client_port}")
 
+        try:
+            print(f"Received Metainfo: {metainfo_dict}")
+
+            file_name = metainfo_dict.get('file_name')
+            pieces = metainfo_dict.get('pieces') 
+
+            if not file_name or not pieces:
+                print("Invalid metainfo received, missing 'file_name' or 'pieces'.")
+                return
+            
+            self.update_client_info(client_ip, client_port, file_name, pieces)
+        except Exception as e:
+            print(f"Error receiving metainfo from {client_ip}:{client_port}: {e}")
+            
+    def update_client_info(self, client_ip, client_port, file_name, pieces): #! WORKING ON THIS
+        try:
+            # Locking client_info for thread safety
+            with self.lock:
+                client_key = (client_ip, client_port)
+
+                if client_key not in self.client_info:
+                    self.client_info[client_key] = {}
+
+                self.client_info[client_key][file_name] = pieces
+
+            print(f"Updated client_info: {client_key} now has file '{file_name}' with pieces {pieces}.")
+        except Exception as e:
+            print(f"Error updating client_info for {client_ip}:{client_port}: {e}")
+
+  
 
 
 

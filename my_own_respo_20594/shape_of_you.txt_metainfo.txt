@@ -1,0 +1,5 @@
+File Name: shape_of_you.txt
+File Length: 3149 bytes
+Piece Length: 524288 bytes
+Number of Pieces: 1
+SHA-1 Hashes of Pieces: aabd215e7265915cb989c70cdfd253dadacf2eb8

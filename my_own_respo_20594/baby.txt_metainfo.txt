@@ -1,0 +1,5 @@
+File Name: baby.txt
+File Length: 2442 bytes
+Piece Length: 524288 bytes
+Number of Pieces: 1
+SHA-1 Hashes of Pieces: c155a8fa9048a090f9d2170ba6aa68bb1e9c1efa
