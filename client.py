@@ -46,9 +46,9 @@ def list_connected_clients():
         print("No clients are currently connected.") 
 
 
-# New connection for newly connected client
+# New connection for newly connected client (Connected)
 def new_connection(conn, addr):
-    conn.settimeout(1) # Setting timeout to check the stop_event
+    conn.settimeout(5) # Setting timeout to check the stop_event
     
     # Receive peer port separately
     string_peer_port = conn.recv(1024).decode("utf-8")
@@ -64,8 +64,8 @@ def new_connection(conn, addr):
         try:
             data = conn.recv(1024)
             command = data.decode("utf-8")
-            if not data:
-                break
+            # if not data:
+            #     break
             #TODO: process at client side
         except socket.timeout:
             continue
@@ -96,8 +96,8 @@ def new_conn_tracker(tracker_socket, server_host, server_port):
         try:
             data = tracker_socket.recv(1024)
             command = data.decode("utf-8")
-            if not data:
-                break
+            # if not data:
+            #     break
         except socket.timeout:
             continue
         except Exception:
@@ -111,7 +111,7 @@ def new_conn_tracker(tracker_socket, server_host, server_port):
 def connect_to_tracker(server_host, server_port):
     try:
         tracker_socket = socket.socket()
-        tracker_socket.settimeout(1) # Setting timeout to check the stop_event
+        tracker_socket.settimeout(5) # Setting timeout to check the stop_event
         tracker_socket.connect((server_host, server_port))
         print(f"Tracker ('{server_host}', {server_port}) connected.")
     except ConnectionRefusedError:
@@ -129,14 +129,14 @@ def connect_to_tracker(server_host, server_port):
     update_client_list(tracker_socket)
     return tracker_socket
 
-# Connect to other peers
+# Connect to other peers (Connect)
 def new_conn_peer(peer_socket, peer_ip, peer_port):
     while not stop_event.is_set():
         try:
             data = peer_socket.recv(1024)
             command = data.decode("utf-8")
-            if not data:
-                break
+            # if not data:
+            #     break
         except socket.timeout:
             continue
         except Exception:
@@ -198,7 +198,7 @@ def client_program():
     print(f"Client IP: {client_ip} | Client Port: {client_port}")
     print("Listening on: {}:{}".format(client_ip, client_port))
     client_socket = socket.socket()
-    client_socket.settimeout(1) # Setting timeout to check the stop_event
+    client_socket.settimeout(5) # Setting timeout to check the stop_event
 
     client_socket.bind((client_ip, client_port))
     client_socket.listen(10)
@@ -221,7 +221,7 @@ def client_program():
 def shutdown_client():
     stop_event.set()
     for nconn in nconn_threads:
-        nconn.join()
+        nconn.join(timeout=5)
     print("All threads have been closed.")
 
 def client_terminal():
@@ -283,7 +283,7 @@ if __name__ == "__main__":
     client_terminal()
 
     shutdown_client()
-    thread_client.join()
+    thread_client.join(timeout=5)
 
     sys.exit(0)
 

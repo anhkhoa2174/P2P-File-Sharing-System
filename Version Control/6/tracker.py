@@ -41,6 +41,7 @@ def update_client_list(client_socket):
     pickle_client_addr_list = pickle.dumps(client_addr_list)
     message = header.encode("utf-8") + pickle_client_addr_list
     client_socket.sendall(message)
+    time.sleep(1)
     
     print("Client list sent.")
 
@@ -55,9 +56,7 @@ def new_conn_client(client_socket, client_ip, client_port):
             command = data.decode("utf-8")
             if not data:
                 break
-
-            command = data[:(data.find(b":"))].decode("utf-8")
-            if command == "update_client_list":
+            elif command == "update_client_list":
                 update_client_list(client_socket)
             elif command == "disconnect":
                 break
@@ -107,25 +106,18 @@ def server_program():
     serversocket.close()
     print("Tracker server stopped.")
 
-def disconnect_from_client(client_ip, client_port):
-    if (client_ip, client_port) in client_addr_list:
-        index = client_addr_list.index((client_ip, client_port))
-        conn = client_conn_list[index]
-    else:
-        print(f"No connection found with client {client_ip}:{client_port}.")
-        return
-
-    header = "disconnect:"
-    message = header.encode("utf-8")
-    conn.sendall(message)
-
+# FIX
+def disconnect_from_client(conn, client_ip, client_port):
+    command = "disconnect"
+    conn.send(command.encode("utf-8"))
     print(f"Disconnect requested to client ('{client_ip}', {client_port}).")
 
+# FIX
 def disconnect_from_all_clients():
-    for addr in client_addr_list:
-        disconnect_from_client(addr[0], addr[1])
-    
-    print("All clients have been disconnected.")
+    command = "disconnect"
+    for conn in client_conn_list:
+        conn.send(command.encode("utf-8"))
+        print("Exit requested.")
 
 def shutdown_server():
     stop_event.set()
@@ -142,19 +134,6 @@ def tracker_terminal():
                 print("The program is running normally.")
             elif command == "list_clients":
                 list_clients()
-            elif command.startswith("disconnect_from_client"):
-                parts = command.split()
-                if len(parts) == 3:
-                    client_ip = parts[1]
-                    try:
-                        client_port = int(parts[2])
-                        disconnect_from_client(client_ip, client_port)
-                    except ValueError:
-                        print("Invalid port.")
-                else:
-                    print("Usage: disconnect_from_client <IP> <Port>")
-            elif command == "disconnect_from_all_clients":
-                disconnect_from_all_clients()
             elif command == "exit":
                 disconnect_from_all_clients()
                 print("Exiting Tracker Terminal...")
