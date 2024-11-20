@@ -209,7 +209,7 @@ class peer:
             print(f"Could not connect to peer {peer_ip}:{peer_port}.")
     
         # Send peer port separately
-        string_peer_port = str(peer_port)
+        string_peer_port = str(self.portForPeer)
         peer_socket.send(string_peer_port.encode("utf-8"))
         
         # Create thread
