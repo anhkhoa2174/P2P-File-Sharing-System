@@ -52,7 +52,6 @@ def new_conn_client(client_socket, client_ip, client_port):
     while not stop_event.is_set():
         try:
             data = client_socket.recv(4096)
-            command = data.decode("utf-8")
             if not data:
                 break
 

@@ -172,9 +172,9 @@ class peer:
         while not stop_event.is_set():
             try:
                 data = peer_socket.recv(4096)
-                command = data.decode("utf-8")
                 if not data:
                     break
+
                 command = data[:(data.find(b":"))].decode("utf-8")
                 if command == "disconnect":
                     break
