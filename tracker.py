@@ -174,7 +174,23 @@ class tracker:
         except Exception as e:
             print(f"Error updating client_info for {client_ip}:{client_port}: {e}")
 
-  
+    def find_peer_have(self, pieces): #! WORKING ON THIS
+        try:
+            peer_list = []
+
+            # Locking client_info for thread safety
+            with self.lock:
+                for client_key, files in self.client_info.items():
+                    for file_name, client_pieces in files.items():
+                        if any(piece in client_pieces for piece in pieces):
+                            if client_key not in peer_list: 
+                                peer_list.append(client_key)
+
+            print(f"Peers with pieces {pieces}: {peer_list}")
+            return peer_list  
+        except Exception as e:
+            print(f"Error finding peers with pieces {pieces}: {e}")
+            return []    
 
 
 
