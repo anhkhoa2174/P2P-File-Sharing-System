@@ -156,42 +156,42 @@ class tracker:
                 print("Invalid metainfo received, missing 'file_name' or 'pieces'.")
                 return
             
-            self.update_client_info(client_ip, client_port, file_name, pieces)
+            self.update_client_info(client_ip, client_port, pieces)
         except Exception as e:
             print(f"Error receiving metainfo from {client_ip}:{client_port}: {e}")
             
-    def update_client_info(self, client_ip, client_port, file_name, pieces): #! WORKING ON THIS
+    def update_client_info(self, client_ip, client_port, hashcode):  
         try:
             # Locking client_info for thread safety
             with self.lock:
-                client_key = (client_ip, client_port)
+                client_key = (client_ip, client_port)  
 
-                if client_key not in self.client_info:
-                    self.client_info[client_key] = {}
+                if client_key in self.client_info:
+                    self.client_info[client_key] += hashcode
+                else:
+                    self.client_info[client_key] = hashcode  
 
-                self.client_info[client_key][file_name] = pieces
-
-            print(f"Updated client_info: {client_key} now has file '{file_name}' with pieces {pieces}.")
+            print(f"Updated client_info: {client_key} now has hashcode '{hashcode}'.")
         except Exception as e:
             print(f"Error updating client_info for {client_ip}:{client_port}: {e}")
 
-    def find_peer_have(self, pieces, client_ip, client_port): #! WORKING ON THIS
+    def find_peer_have(self, hashcode, client_ip, client_port):
         try:
-            peer_list = []
+            peer_list = []  # Danh sách các peer phù hợp
 
             # Locking client_info for thread safety
             with self.lock:
-                for client_key, files in self.client_info.items():
-                    for file_name, client_pieces in files.items():
-                        if any(piece in client_pieces for piece in pieces):
-                            if client_key not in peer_list: 
-                                peer_list.append(client_key)
+                for client_key, client_hashcode in self.client_info.items():
+                    #print(f"{client_key} with {client_hashcode}") #! THIS IS ONLY USED FOR DEBUGGING, REMEMBER TO DELETE
+                    if hashcode in client_hashcode:
+                        peer_list.append(client_key) 
 
-            print(f"Peers with pieces {pieces}: {peer_list}")
+            print(f"Peers with hashcode '{hashcode}': {peer_list}")
         except Exception as e:
-            print(f"Error finding peers with pieces {pieces}: {e}")  
-        
+            print(f"Error finding peers with hashcode '{hashcode}': {e}")
+
         self.send_peer_have(peer_list, client_ip, client_port)
+
     
     def send_peer_have(self, peer_list, client_ip, client_port): #! WORKING ON THIS
         if (client_ip, client_port) in self.client_addr_list:
