@@ -1,5 +1,0 @@
-File Name: fractures.txt
-File Length: 1283 bytes
-Piece Length: 524288 bytes
-Number of Pieces: 1
-SHA-1 Hashes of Pieces: 4a90d5d7d2f3a27c4cafffd1deb3121f4d45e8d6
