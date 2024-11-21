@@ -24,6 +24,7 @@ class File:
         self.piece_idx_downloaded = []
         self.piece_idx_not_downloaded = []
         self.downloadedBytes = []
+        self.flag = False
     
         
     

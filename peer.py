@@ -131,6 +131,10 @@ class peer:
                     print("Client list received.")
                 elif command == "disconnect":
                     break
+                if command == "peer_list": #! WORKING ON THIS 
+                    # Receive the clients list from the Tracker
+                    peer_list = pickle.loads(data[len("peer_list:"):])
+                    print(f"Peer list received: {peer_list}")
             except socket.timeout:
                 continue
             except Exception as e:
@@ -306,22 +310,26 @@ class peer:
         for file in self.fileInRes:
             metainfo = file.meta_info  
 
-            metainfo_dict = {
-                'file_name': metainfo.fileName,
-                'file_size': metainfo.length,
-                'piece_length': metainfo.pieceLength,
-                'pieces': metainfo.pieces,
-                'num_of_pieces': metainfo.numOfPieces,
-            }
+            if not file.flag:
+                metainfo_dict = {
+                    'file_name': metainfo.fileName,
+                    'file_size': metainfo.length,
+                    'piece_length': metainfo.pieceLength,
+                    'pieces': metainfo.pieces,
+                    'num_of_pieces': metainfo.numOfPieces,
+                }
 
-            try:
-                header = "send_metainfo:".encode("utf-8")
-                header += pickle.dumps(metainfo_dict)
-                conn.sendall(header)
-                time.sleep(0.1)
-                print(f"Sent Metainfo for {metainfo.fileName} to tracker.")
-            except Exception as e:
-                print(f"Failed to send Metainfo for {metainfo.fileName} to tracker: {e}")
+                try:
+                    header = "send_metainfo:".encode("utf-8")
+                    header += pickle.dumps(metainfo_dict)
+                    conn.sendall(header)
+                    file.flag = True
+                    time.sleep(0.1)
+                    print(f"Sent Metainfo for {metainfo.fileName} to tracker.")
+                except Exception as e:
+                    print(f"Failed to send Metainfo for {metainfo.fileName} to tracker: {e}")
+            else:
+                print(f"Skipping metainfo for {metainfo.fileName} because it has been sent.")
 
     def find_peer_have(self, pieces, server_host, server_port): #! WORKING ON THIS 
         if (server_host, server_port) in self.connected_tracker_addr_list:
@@ -332,11 +340,11 @@ class peer:
             return
 
         try:
+            print(f"Asking tracker to find peer list with magnet text {pieces}.")
             header = "find_peer_have:".encode("utf-8")
             header += pickle.dumps(pieces)
             conn.sendall(header)
             time.sleep(0.1)
-            print(f"Asking tracker to find peer list with magnet text {pieces}.")
         except Exception as e:
             print(f"Failed to ask for tracker to find peer list with magnet text {pieces}.: {e}")
 
@@ -412,6 +420,7 @@ if __name__ == "__main__":
             elif command == "find_peer_have": #! WORKING ON THIS
                 pieces = input("Enter magnet text: ")
                 #pieces = sha1_hash(pieces.encode('utf-8')).hex()
+                pieces = "4a90d5d7d2f3a27c4cafffd1deb3121f4d45e8d6"
                 my_peer.find_peer_have(pieces, server_host, server_port)
             elif command == "exit":
                 my_peer.disconnect_from_tracker(server_host, server_port)

@@ -62,13 +62,14 @@ class tracker:
                 if command == "update_client_list":
                     self.update_client_list(client_socket)
                 elif command == "disconnect":
+                    self.remove_client_info(client_ip, client_port) #! WORKING ON THIS
                     break
                 elif command == "send_metainfo": #! WORKING ON THIS
                     metainfo_data = pickle.loads(data[len("send_metainfo:"):])
                     self.receive_metainfo(metainfo_data, client_ip, client_port)
                 elif command == "find_peer_have":
                     pieces = pickle.loads(data[len("find_peer_have:"):])
-                    self.find_peer_have(pieces)
+                    self.find_peer_have(pieces, client_ip, client_port)
             except socket.timeout:
                 continue
             except Exception as e:
@@ -117,7 +118,7 @@ class tracker:
         print("Tracker server stopped.")
 
     def disconnect_from_client(self, client_ip, client_port):
-        if (client_ip, client_port) in client_addr_list:
+        if (client_ip, client_port) in self.client_addr_list:
             index = self.client_addr_list.index((client_ip, client_port))
             conn = self.client_conn_list[index]
         else:
@@ -174,7 +175,7 @@ class tracker:
         except Exception as e:
             print(f"Error updating client_info for {client_ip}:{client_port}: {e}")
 
-    def find_peer_have(self, pieces): #! WORKING ON THIS
+    def find_peer_have(self, pieces, client_ip, client_port): #! WORKING ON THIS
         try:
             peer_list = []
 
@@ -187,11 +188,40 @@ class tracker:
                                 peer_list.append(client_key)
 
             print(f"Peers with pieces {pieces}: {peer_list}")
-            return peer_list  
         except Exception as e:
-            print(f"Error finding peers with pieces {pieces}: {e}")
-            return []    
+            print(f"Error finding peers with pieces {pieces}: {e}")  
+        
+        self.send_peer_have(peer_list, client_ip, client_port)
+    
+    def send_peer_have(self, peer_list, client_ip, client_port): #! WORKING ON THIS
+        if (client_ip, client_port) in self.client_addr_list:
+            index = self.client_addr_list.index((client_ip, client_port))
+            conn = self.client_conn_list[index]
+        else:
+            print(f"No connection found with client {client_ip}:{client_port}.")
+            return
 
+        try :
+            header = "peer_list:".encode("utf-8")
+            header += pickle.dumps(peer_list)
+            conn.sendall(header)
+            time.sleep(0.1)
+            print(f"Complete sending peer list to {client_ip} : {client_port}")
+        except Exception as e:
+            print(f"Failed to send peer list to {client_ip} : {client_port}: {e}")
+
+    def remove_client_info(self, client_ip, client_port): #! WORKING ON THIS 
+        try:
+            # Locking client_info for thread safety
+            with self.lock:
+                client_key = (client_ip, client_port)
+                if client_key in self.client_info:
+                    del self.client_info[client_key]
+                    print(f"Removed client_info for {client_key}.")
+                else:
+                    print(f"Client {client_key} not found in client_info.")
+        except Exception as e:
+            print(f"Error removing client_info for {client_ip}:{client_port}: {e}")
 
 
 if __name__ == "__main__":
