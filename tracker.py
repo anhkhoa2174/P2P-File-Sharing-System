@@ -177,7 +177,7 @@ class tracker:
 
     def find_peer_have(self, hashcode, client_ip, client_port):
         try:
-            peer_list = []  # Danh sách các peer phù hợp
+            peer_list = []  
 
             # Locking client_info for thread safety
             with self.lock:
@@ -217,7 +217,8 @@ class tracker:
                 client_key = (client_ip, client_port)
                 if client_key in self.client_info:
                     del self.client_info[client_key]
-                    print(f"Removed client_info for {client_key}.")
+                    #! ONLY USED FOR DEBUGGING
+                    #print(f"Removed client_info for {client_key}.")
                 else:
                     print(f"Client {client_key} not found in client_info.")
         except Exception as e:

@@ -55,15 +55,19 @@ class peer:
                 if(os.path.getsize("peer_respo/" + name) == 0):
                     os.remove("peer_respo/" + name)
                 else:
-                    self.fileInRes.append(File("peer_respo/"+name))
+                    self.fileInRes.append(File("peer_respo/"+name, ""))
 
 
                     # Testing creating metainfo
-                    file_obj = File("peer_respo/"+name)
-                    # files.append(file_obj)
-                    # Get metainfo and save into a text file
+                    file_obj = File("peer_respo/"+name, "")
+                    file_obj.meta_info_from_torrent = file_obj.meta_info
+                    file_obj._initialize_piece_states()
+
+                    file_obj.print_file_information() #! DUNG DE TEST
+
                     self.save_metainfo_to_txt(file_obj.meta_info)
         return  self.fileInRes
+    
     
     def save_metainfo_to_txt(self, metainfo):
         # The path to txt file that saves metainfo of a specific file
@@ -323,7 +327,7 @@ class peer:
                     header = "send_metainfo:".encode("utf-8")
                     header += pickle.dumps(metainfo_dict)
                     conn.sendall(header)
-                    file.flag = True
+                    file.sentMetaInfo = True
                     time.sleep(0.1)
                     print(f"Sent Metainfo for {metainfo.fileName} to tracker.")
                 except Exception as e:

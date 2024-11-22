@@ -39,7 +39,7 @@ class Metainfo:
             self.pieceLength = PIECE_LENGTH
 
             pieces = split_into_pieces(path, self.pieceLength)
-            self.pieces = [sha1_hash(piece).hex() for piece in pieces]
+            self.pieces = b''.join(sha1_hash(piece) for piece in pieces).hex()
 
             self.numOfPieces = math.ceil(self.length / self.pieceLength)
         else:
@@ -75,26 +75,34 @@ class File:
     def __init__(self, path, torrent_txt_path):
         self.meta_info = Metainfo(path)
         self.meta_info_from_torrent = MetainfoTorrent(torrent_txt_path)
-
         self.piece_idx_downloaded = []  
         self.piece_idx_not_downloaded = []
         self.downloadedBytes = self.meta_info.length if self.meta_info.length else 0
         self.sentMetaInfo = False #! WORKING ON THIS
         self.bitFieldMessage = []
+        self.filePath = path
 
     def _initialize_piece_states(self):
-        if self.meta_info_from_torrent.pieces and self.meta_info.pieces:
-            for idx, piece_hash in enumerate(self.meta_info.pieces):
-                if piece_hash in self.meta_info_from_torrent.pieces:
-                    self.piece_idx_downloaded.append(idx)
-                else:
-                    self.piece_idx_not_downloaded.append(idx)
-            self._create_bit_field_message()
+        pieces_from_file = list(split_into_pieces(self.filePath, self.meta_info.pieceLength))
+        for idx, piece in enumerate(pieces_from_file):
+            piece_hash = sha1_hash(piece).hex()
+            if piece_hash in self.meta_info_from_torrent.pieces:
+                self.piece_idx_downloaded.append(idx)
+            else:
+                self.piece_idx_not_downloaded.append(idx)
+
+        self._create_bit_field_message()
 
     def _create_bit_field_message(self):
         bit_field = ['1' if idx in self.piece_idx_downloaded else '0' for idx in range(self.meta_info.numOfPieces)]
         self.bitFieldMessage = ''.join(bit_field)
 
+    def print_file_information(self): #! DUNG DE TEST
+        print(f"Downloaded Pieces Index: {self.piece_idx_downloaded}")
+        print(f"Not Downloaded Pieces Index: {self.piece_idx_not_downloaded}")
+        print(f"Downloaded Bytes: {self.downloadedBytes}")
+        print(f"Sent Meta Info: {self.sentMetaInfo}")
+        print(f"Bitfield Message: {self.bitFieldMessage}")
         
     
 
