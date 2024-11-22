@@ -310,7 +310,7 @@ class peer:
         for file in self.fileInRes:
             metainfo = file.meta_info  
 
-            if not file.flag:
+            if not file.sentMetaInfo:
                 metainfo_dict = {
                     'file_name': metainfo.fileName,
                     'file_size': metainfo.length,
