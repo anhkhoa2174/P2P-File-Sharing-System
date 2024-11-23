@@ -55,13 +55,13 @@ class peer:
                 if(os.path.getsize("peer_respo/" + name) == 0):
                     os.remove("peer_respo/" + name)
                 else:
-                    self.fileInRes.append(File("peer_respo/"+name))
+                    self.fileInRes.append(File("peer_respo/"+name, ""))
 
 
-                    # Testing creating metainfo
-                    file_obj = File("peer_respo/"+name)
-                    # files.append(file_obj)
-                    # Get metainfo and save into a text file
+                    file_obj = File("peer_respo/"+name, "")
+                    file_obj.meta_info_from_torrent = file_obj.meta_info
+                    file_obj._initialize_piece_states()
+                    file_obj.print_file_information() #! DUNG DE TEST
                     self.save_metainfo_to_txt(file_obj.meta_info)
         return  self.fileInRes
     
@@ -178,6 +178,21 @@ class peer:
                 command = data[:(data.find(b":"))].decode("utf-8")
                 if command == "disconnect":
                     break
+                
+                elif command == "download":
+                    file_name = data[(data.find(b":") + 1):].decode("utf-8")
+                    print(f"Received request download_file '{file_name}' from peer ({peer_ip}:{peer_port})")
+                    self.send_file(peer_socket, file_name)
+                    
+                elif command == "receive_file":
+                    data_receive = data[(data.find(b":") + 1):]
+                    self.receive_file(peer_socket, data_receive)
+                elif command == "not_receive_file":
+                    data_receive = data[(data.find(b":") + 1):].decode("utf-8")
+                    print(f"{data_receive} from peer ({peer_ip}:{peer_port})")
+                    
+                else:
+                    print(f"Unknown command received: {command}")                
             except socket.timeout:
                 continue
             except Exception:
@@ -221,6 +236,99 @@ class peer:
         self.connected_client_conn_list.append(peer_socket)
         self.connected_client_addr_list.append((peer_ip, peer_port))
 
+    # Download a file from one peer
+    def download_file(self, peer_ip, peer_port, file_name):
+            try:
+                if (peer_ip, peer_port) in self.connected_client_addr_list:
+                    index = self.connected_client_addr_list.index((peer_ip, peer_port))
+                    peer_socket = self.connected_client_conn_list[index]
+                else:
+                    print(f"No connection found with peer {peer_ip}:{peer_port}.")
+                    return
+                
+                print(f"Requesting file '{file_name}' from peer {peer_ip}:{peer_port}..............")
+                
+                request_message = f"download:{file_name}"
+                peer_socket.send(request_message.encode("utf-8"))
+
+            except Exception as e:
+                print(f"Error requesting file: {e}")  
+                
+    # Download a file from all peers
+    def download_file_from_all_peers(self, file_name):
+        try:
+            threads = []
+            
+            for peer_ip, peer_port in self.connected_client_addr_list:
+                thread = Thread(target=self.download_file, args=(peer_ip, peer_port, file_name))
+                threads.append(thread)
+                thread.start()
+
+            for thread in threads:
+                thread.join()
+            
+            print(f"Finished downloading '{file_name}' from all peers.")
+        
+        except Exception as e:
+            print(f"Error download from all peers: {e}")  
+
+    def send_file(self, conn, file_name):
+        
+        #if(filename == filename1):print("fffffffffff")
+        try:
+            with open(file_name, "rb") as f:
+                file_data = f.read()
+
+            file_size = len(file_data)
+            
+            header = f"receive_file:{file_name}:{file_size}"
+
+            data_to_send = header.encode("utf-8") + b"\n" + file_data
+
+            conn.sendall(data_to_send)
+            
+            print(f"File {file_name} has been sent to the client.")
+
+        except FileNotFoundError:
+            print(f"File {file_name} not found.")
+            error_message = f"not_receive_file:File '{file_name}' not found."
+            conn.sendall(error_message.encode("utf-8")) 
+        except Exception as e:
+            print(f"Error sending file {file_name}: {e}")
+            
+        
+    def receive_file(self, peer_socket, data_receive):
+        try:
+            header, file_data = data_receive.split(b"\n", 1)
+            parts = header.split(b':')
+
+            if len(parts) == 2:
+                file_name = parts[0].decode("utf-8")
+                file_size = int(parts[1].decode("utf-8"))
+            else:
+                print("Invalid data format.")
+
+            if file_size <= 0:
+                print(f"Cannot receiving invalid file")
+                return
+            
+            print(f"File size to receive: {file_size} bytes")
+
+            print(f"Receiving file: {file_name}")
+            
+            with open(file_name, "wb") as file:
+
+                file.write(file_data)
+                received_size = len(file_data)
+                if received_size != file_size:
+                    print(f"\nFile '{file_name}' cannot receive enough.")
+                    return
+
+            print(f"\nFile '{file_name}' received successfully.")
+
+        except Exception as e:
+            print(f"Error receiving file: {e}")     
+            
     def client_program(self):
         print(f"Peer IP: {self.peerIP} | Peer Port: {self.portForPeer}")
         print("Listening on: {}:{}".format(self.peerIP, self.portForPeer))
@@ -306,17 +414,19 @@ class peer:
         for file in self.fileInRes:
             metainfo = file.meta_info  
 
-            metainfo_dict = {
-                'file_name': metainfo.fileName,
-                'file_size': metainfo.length,
-                'piece_length': metainfo.pieceLength,
-                'pieces': metainfo.pieces,
-                'num_of_pieces': metainfo.numOfPieces,
-            }
+            if not file.sentMetaInfo:
+                metainfo_dict = {
+                    'file_name': metainfo.fileName,
+                    'file_size': metainfo.length,
+                    'piece_length': metainfo.pieceLength,
+                    'pieces': metainfo.pieces,
+                    'num_of_pieces': metainfo.numOfPieces,
+                }
 
             try:
                 header = "send_metainfo:".encode("utf-8")
                 header += pickle.dumps(metainfo_dict)
+                file.sentMetaInfo = True
                 conn.sendall(header)
                 time.sleep(0.1)
                 print(f"Sent Metainfo for {metainfo.fileName} to tracker.")
@@ -339,6 +449,108 @@ class peer:
             print(f"Asking tracker to find peer list with magnet text {pieces}.")
         except Exception as e:
             print(f"Failed to ask for tracker to find peer list with magnet text {pieces}.: {e}")
+       
+    # split a file to share     
+    def split_file(self, file_name, piece_size):
+ 
+        # Đường dẫn các folder trong dự án
+        root_folder = os.getcwd()  # Thư mục gốc của project
+        file_have_folder = os.path.join(root_folder, "FileHave")
+        file_share_folder = os.path.join(root_folder, "Fileshare")
+        
+        # Đảm bảo các folder FileHave và Fileshare tồn tại
+        if not os.path.exists(file_have_folder):
+            print(f"'FileHave' folder does not exist in the project root: {root_folder}")
+            return None
+        if not os.path.exists(file_share_folder):
+            print(f"'Fileshare' folder does not exist in the project root: {root_folder}")
+            return None
+        
+        # Kiểm tra xem file có trong folder FileHave không
+        file_path = os.path.join(file_have_folder, file_name)
+        if not os.path.exists(file_path):
+            print(f"File '{file_name}' not found in 'FileHave'.")
+            return None
+
+        # Tạo folder mới trong Fileshare với tên là file
+        output_folder = os.path.join(file_share_folder, os.path.splitext(file_name)[0])
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
+
+        try:
+            with open(file_path, "rb") as f:
+                file_size = os.path.getsize(file_path)
+                num_pieces = (file_size // piece_size) + (1 if file_size % piece_size != 0 else 0)  
+                
+                print(f"Splitting '{file_name}' into {num_pieces} pieces...")
+                
+                for i in range(num_pieces):
+                    # Đặt tên cho từng piece
+                    piece_name = os.path.join(output_folder, f"{file_name}_part_{i + 1}.piece")
+                    
+                    # Đọc dữ liệu cho từng phần
+                    piece_data = f.read(piece_size)
+                    
+                    # Ghi dữ liệu vào file mới
+                    with open(piece_name, "wb") as piece_file:
+                        piece_file.write(piece_data)
+                    
+                    print(f"Created: {piece_name}")
+            
+            print(f"File '{file_name}' has been split into {num_pieces} pieces stored in '{output_folder}'.")
+            return output_folder
+        
+        except Exception as e:
+            print(f"Error splitting file '{file_name}': {e}")
+            return None
+        
+        
+    #Merge a file received
+    def merge_file(self, file_name, file_extension):
+        import os
+
+        # Đường dẫn các folder trong dự án
+        root_folder = os.getcwd()  # Thư mục gốc của project
+        file_have_folder = os.path.join(root_folder, "FileHave")
+        file_share_folder = os.path.join(root_folder, "FileShare")
+        
+        # Đảm bảo các folder FileHave và Fileshare tồn tại
+        if not os.path.exists(file_have_folder):
+            print(f"'FileHave' folder does not exist in the project root: {root_folder}")
+            return None
+        if not os.path.exists(file_share_folder):
+            print(f"'Fileshare' folder does not exist in the project root: {root_folder}")
+            return None
+
+        # Kiểm tra xem folder tên file có tồn tại trong Fileshare không
+        folder_with_pieces = os.path.join(file_share_folder, os.path.splitext(file_name)[0])
+        if not os.path.exists(folder_with_pieces) or not os.path.isdir(folder_with_pieces):
+            print(f"Folder '{file_name}' not found in 'Fileshare'.")
+            return None
+
+        # Tên file mới được ghép
+        merged_file_name = f"{file_name}{file_extension}"
+        merged_file_path = os.path.join(file_have_folder, merged_file_name)
+
+        try:
+            with open(merged_file_path, "wb") as merged_file:
+                # Lấy danh sách tất cả các piece trong folder, đảm bảo theo thứ tự
+                pieces = sorted(os.listdir(folder_with_pieces))
+                
+                for piece in pieces:
+                    piece_path = os.path.join(folder_with_pieces, piece)
+                    print(f"Merging: {piece_path}")
+                    
+                    # Đọc dữ liệu từ từng piece và ghi vào file hợp nhất
+                    with open(piece_path, "rb") as piece_file:
+                        merged_file.write(piece_file.read())
+            
+            print(f"File '{merged_file_name}' has been successfully merged in '{file_have_folder}'.")
+            return merged_file_path
+
+        except Exception as e:
+            print(f"Error merging file '{file_name}': {e}")
+            return None
 
 
 if __name__ == "__main__":
@@ -351,6 +563,27 @@ if __name__ == "__main__":
             command = input("Peer> ")
             if command == "test":
                 print("The program is running normally.")
+            elif command.startswith("split_file"):
+                parts = command.split()
+                if len(parts) == 2:
+                    file_name = parts[1]
+                    try:
+                        my_peer.split_file(file_name, 50 * 1024)
+                    except ValueError:
+                        print("Invalid port.")
+                else:
+                    print("Usage: split_file <file_name>")
+            elif command.startswith("merge_file"):
+                parts = command.split()
+                if len(parts) == 3:
+                    file_name = parts[1]
+                    file_extension = parts[2]
+                    try:
+                        my_peer.merge_file(file_name, file_extension)
+                    except ValueError:
+                        print("Invalid port.")
+                else:
+                    print("Usage: merge_file <file_name> <file_extension>")
             elif command.startswith("connect_to_tracker"):
                 parts = command.split()
                 if len(parts) == 3:
@@ -405,6 +638,30 @@ if __name__ == "__main__":
                     print("Usage: disconnect_from_peer <IP> <Port>")
             elif command == "disconnect_from_all_peers":
                 my_peer.disconnect_from_all_peers()  
+            elif command.startswith("download"):
+                parts = command.split()
+                if len(parts) == 4:
+                    peer_ip = parts[1]
+                    try:
+                        peer_port = int(parts[2])
+                        file_name = parts[3]
+                        my_peer.download_file(peer_ip, peer_port, file_name)
+                    except ValueError:
+                        print("Invalid port.")
+                    except Exception as e:
+                        print(f"Error downloading file: {e}")
+                else:
+                    print("Usage: download <IP> <Port> <file_name>")   
+            elif command.startswith("from_all_peers_download"):
+                parts = command.split()
+                if len(parts) == 2:
+                    file_name = parts[1]
+                    try:
+                        my_peer.download_file_from_all_peers(file_name)
+                    except Exception as e:
+                        print(f"Error downloading file from all peers: {e}")
+                else:
+                    print("Usage: from_all_peers_download <file_name>")  
             elif command == "get_metainfo":
                 my_peer.getFileInRes()
             elif command == "send_metainfo": #! WORKING ON THIS
