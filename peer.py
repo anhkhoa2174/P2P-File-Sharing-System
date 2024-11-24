@@ -46,6 +46,8 @@ class peer:
         peerOwnRes += "/"
         return peerOwnRes
     
+    
+    
     def getFileInRes(self) -> list:
         ownRespository = os.listdir("peer_respo")
         if len(ownRespository) == 0:
@@ -55,14 +57,18 @@ class peer:
                 if(os.path.getsize("peer_respo/" + name) == 0):
                     os.remove("peer_respo/" + name)
                 else:
-                    self.fileInRes.append(File("peer_respo/"+name, ""))
-
-
-                    file_obj = File("peer_respo/"+name, "")
-                    file_obj.meta_info_from_torrent = file_obj.meta_info
-                    file_obj._initialize_piece_states()
-                    file_obj.print_file_information() #! DUNG DE TEST
-                    self.save_metainfo_to_txt(file_obj.meta_info)
+                    for i in self.fileInRes:
+                        file_obj = File("peer_respo/"+name, "")
+                        self.fileInRes.append(file_obj, "")
+                        folder_path = os.path.join("peer_respo", i.Metainfo.filename)
+                        
+                        if not os.path.isdir(folder_path):
+                            file_obj.split_file("peer_respo/"+name, file_obj.length)
+                    
+                        file_obj.meta_info_from_torrent = file_obj.meta_info
+                        file_obj._initialize_piece_states()
+                        file_obj.print_file_information() #! DUNG DE TEST
+                        self.save_metainfo_to_txt(file_obj.meta_info) 
         return  self.fileInRes
     
     def save_metainfo_to_txt(self, metainfo):
@@ -450,60 +456,7 @@ class peer:
         except Exception as e:
             print(f"Failed to ask for tracker to find peer list with magnet text {pieces}.: {e}")
        
-    # split a file to share     
-    def split_file(self, file_name, piece_size):
- 
-        # Đường dẫn các folder trong dự án
-        root_folder = os.getcwd()  # Thư mục gốc của project
-        file_have_folder = os.path.join(root_folder, "FileHave")
-        file_share_folder = os.path.join(root_folder, "Fileshare")
-        
-        # Đảm bảo các folder FileHave và Fileshare tồn tại
-        if not os.path.exists(file_have_folder):
-            print(f"'FileHave' folder does not exist in the project root: {root_folder}")
-            return None
-        if not os.path.exists(file_share_folder):
-            print(f"'Fileshare' folder does not exist in the project root: {root_folder}")
-            return None
-        
-        # Kiểm tra xem file có trong folder FileHave không
-        file_path = os.path.join(file_have_folder, file_name)
-        if not os.path.exists(file_path):
-            print(f"File '{file_name}' not found in 'FileHave'.")
-            return None
-
-        # Tạo folder mới trong Fileshare với tên là file
-        output_folder = os.path.join(file_share_folder, os.path.splitext(file_name)[0])
-        if not os.path.exists(output_folder):
-            os.makedirs(output_folder)
-
-        try:
-            with open(file_path, "rb") as f:
-                file_size = os.path.getsize(file_path)
-                num_pieces = (file_size // piece_size) + (1 if file_size % piece_size != 0 else 0)  
-                
-                print(f"Splitting '{file_name}' into {num_pieces} pieces...")
-                
-                for i in range(num_pieces):
-                    # Đặt tên cho từng piece
-                    piece_name = os.path.join(output_folder, f"{file_name}_part_{i + 1}.piece")
-                    
-                    # Đọc dữ liệu cho từng phần
-                    piece_data = f.read(piece_size)
-                    
-                    # Ghi dữ liệu vào file mới
-                    with open(piece_name, "wb") as piece_file:
-                        piece_file.write(piece_data)
-                    
-                    print(f"Created: {piece_name}")
-            
-            print(f"File '{file_name}' has been split into {num_pieces} pieces stored in '{output_folder}'.")
-            return output_folder
-        
-        except Exception as e:
-            print(f"Error splitting file '{file_name}': {e}")
-            return None
-        
+    
         
     #Merge a file received
     def merge_file(self, file_name, file_extension):
@@ -511,12 +464,12 @@ class peer:
 
         # Đường dẫn các folder trong dự án
         root_folder = os.getcwd()  # Thư mục gốc của project
-        file_have_folder = os.path.join(root_folder, "FileHave")
+        file_have_folder = os.path.join(root_folder, "peer_respo")
         file_share_folder = os.path.join(root_folder, "FileShare")
         
-        # Đảm bảo các folder FileHave và Fileshare tồn tại
+        # Đảm bảo các folder peer_respo và Fileshare tồn tại
         if not os.path.exists(file_have_folder):
-            print(f"'FileHave' folder does not exist in the project root: {root_folder}")
+            print(f"'peer_respo' folder does not exist in the project root: {root_folder}")
             return None
         if not os.path.exists(file_share_folder):
             print(f"'Fileshare' folder does not exist in the project root: {root_folder}")
@@ -563,16 +516,17 @@ if __name__ == "__main__":
             command = input("Peer> ")
             if command == "test":
                 print("The program is running normally.")
-            elif command.startswith("split_file"):
-                parts = command.split()
-                if len(parts) == 2:
-                    file_name = parts[1]
-                    try:
-                        my_peer.split_file(file_name, 50 * 1024)
-                    except ValueError:
-                        print("Invalid port.")
-                else:
-                    print("Usage: split_file <file_name>")
+            # elif command.startswith("split_file"):
+            #     #my_peer.fileInRes
+            #     parts = command.split()
+            #     if len(parts) == 2:
+            #         file_name = parts[1]
+            #         try:
+            #             my_peer.split_file(file_name, 50 * 1024)
+            #         except ValueError:
+            #             print("Invalid port.")
+            #     else:
+            #         print("Usage: split_file <file_name>")
             elif command.startswith("merge_file"):
                 parts = command.split()
                 if len(parts) == 3:

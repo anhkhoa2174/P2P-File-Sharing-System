@@ -3,7 +3,7 @@ import math
 import tool
 import os
 from tool import *
-
+from piece import *
 
 PIECE_LENGTH = 1024 * 512  # 16KB mỗi piece (tùy chỉnh theo nhu cầu)
 
@@ -81,7 +81,10 @@ class File:
         self.sentMetaInfo = False #! WORKING ON THIS
         self.bitFieldMessage = []
         self.filePath = path
-
+        self.piece_List = [] 
+        
+    def _initialize_piece_list(self):
+        
     def _initialize_piece_states(self):
         pieces_from_file = list(split_into_pieces(self.filePath, self.meta_info.pieceLength))
         for idx, piece in enumerate(pieces_from_file):
@@ -103,3 +106,68 @@ class File:
         print(f"Downloaded Bytes: {self.downloadedBytes}")
         print(f"Sent Meta Info: {self.sentMetaInfo}")
         print(f"Bitfield Message: {self.bitFieldMessage}")
+        
+        
+        
+    # split a file to share     
+    def split_file(self, file_name, piece_size):
+ 
+        # Đường dẫn các folder trong dự án
+        root_folder = os.getcwd()  # Thư mục gốc của project
+        file_have_folder = os.path.join(root_folder, "peer_respo")
+        file_share_folder = os.path.join(root_folder, "Fileshare")
+        
+        # Đảm bảo các folder peer_respo và Fileshare tồn tại
+        if not os.path.exists(file_have_folder):
+            print(f"'peer_respo' folder does not exist in the project root: {root_folder}")
+            return None
+        if not os.path.exists(file_share_folder):
+            print(f"'Fileshare' folder does not exist in the project root: {root_folder}")
+            return None
+        
+        # Kiểm tra xem file có trong folder peer_respo không
+        file_path = os.path.join(file_have_folder, file_name)
+        if not os.path.exists(file_path):
+            print(f"File '{file_name}' not found in 'peer_respo'.")
+            return None
+
+        # Tạo folder mới trong Fileshare với tên là file
+        output_folder = os.path.join(file_share_folder, os.path.splitext(file_name)[0])
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
+
+        try:
+            with open(file_path, "rb") as f:
+                file_size = os.path.getsize(file_path)
+                num_pieces = (file_size // piece_size) + (1 if file_size % piece_size != 0 else 0)  
+                
+                
+                
+                print(f"Splitting '{file_name}' into {num_pieces} pieces...")
+                
+                for i in range(num_pieces):
+                    # Đặt tên cho từng piece
+                    piece_path = os.path.join(output_folder, f"piece{i+1}")
+                    
+                    # Đọc dữ liệu cho từng phần
+                    piece_data = f.read(piece_size)
+                    
+                    # Ghi dữ liệu vào file mới
+                    with open(piece_path, "wb") as piece_file:
+                        piece_file.write(piece_data)
+                    
+                    if i < num_pieces-1:
+                        self.piece_list.append(piece(piece_size, self.meta_info.pieces, self.filePath, piece_path))
+                    
+                    else:
+                        self.piece_list.append(piece(file_size - piece_size * num_pieces, self.meta_info.pieces, self.filePath, piece_path))
+                    
+                    print(f"Created: {piece_path}")
+            
+            print(f"File '{file_name}' has been split into {num_pieces} pieces stored in '{output_folder}'.")
+            return output_folder
+        
+        except Exception as e:
+            print(f"Error splitting file '{file_name}': {e}")
+            return None
+        
