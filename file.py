@@ -5,6 +5,7 @@ import os
 from tool import *
 from piece import *
 
+
 PIECE_LENGTH = 1024 * 512  # 16KB mỗi piece (tùy chỉnh theo nhu cầu)
 
 def sha1_hash(data):
@@ -19,18 +20,6 @@ def split_into_pieces(file_path, piece_length):
                 break
             yield piece
 
-# class Metainfo:
-#     def __init__(self, path):
-#         self.fileName = os.path.basename(path)
-#         self.length =  os.path.getsize(path)
-#         self.pieceLength = PIECE_LENGTH
-
-#         pieces = split_into_pieces(path, self.pieceLength)
-#         self.pieces = b''.join(sha1_hash(piece) for piece in pieces).hex()
-
-#         self.numOfPieces = math.ceil(self.length/self.pieceLength)
-
-
 class Metainfo:
     def __init__(self, path):
         if path:
@@ -39,14 +28,26 @@ class Metainfo:
             self.pieceLength = PIECE_LENGTH
 
             pieces = split_into_pieces(path, self.pieceLength)
-            self.pieces = b''.join(sha1_hash(piece) for piece in pieces).hex()
+            self.piecesList = [sha1_hash(piece).hex() for piece in pieces] #piece list chứa hashcode của từng piece
+            self.pieces = ''.join(self.piecesList)
 
             self.numOfPieces = math.ceil(self.length / self.pieceLength)
+
+            # Tạo info_hash từ metadata
+            info_dict = {
+                "fileName": self.fileName,
+                "length": self.length,
+                "pieceLength": self.pieceLength,
+                "pieces": self.pieces
+            }
+            self.info_hash = hashlib.sha1(str(info_dict).encode()).hexdigest()
         else:
             self.fileName = None
             self.length = None
             self.pieceLength = None
+            self.piecesList = None
             self.pieces = None
+            self.info_hash = None
             self.numOfPieces = None
 
 class MetainfoTorrent:
@@ -57,19 +58,38 @@ class MetainfoTorrent:
             self.fileName = None
             self.length = None
             self.pieceLength = None
+            self.piecesList = None
             self.pieces = None
+            self.info_hash = None
             self.numOfPieces = None
 
     def _parse_torrent_file(self, torrent_txt_path):
         with open(torrent_txt_path, 'r') as f:
             content = f.read()
+        
+            # Trích xuất thông tin cơ bản từ tệp torrent
             self.fileName = self._extract_value(content, 'File Name')
             self.length = int(self._extract_value(content, 'File Length').split()[0])  
             self.pieceLength = int(self._extract_value(content, 'Piece Length').split()[0])
             self.numOfPieces = int(self._extract_value(content, 'Number of Pieces'))
-            
+        
+            # Trích xuất chuỗi các hash SHA-1 của từng mảnh
             pieces_hex_str = self._extract_value(content, 'SHA-1 Hashes of Pieces')
-            self.pieces = [pieces_hex_str[i:i+40] for i in range(0, len(pieces_hex_str), 40)]
+        
+            # Lưu hash của từng mảnh vào self.piecesList
+            self.piecesList = [pieces_hex_str[i:i+40] for i in range(0, len(pieces_hex_str), 40)]
+    
+            # Nối các hash của từng mảnh lại với nhau để tạo ra self.pieces
+            self.pieces = ''.join(self.piecesList)
+        
+            # Tạo info hash từ metadata (fileName, length, pieceLength, piecesList)
+            info_dict = {
+                "fileName": self.fileName,
+                "length": self.length,
+                "pieceLength": self.pieceLength,
+                "pieces": ''.join(self.piecesList)
+            }
+            self.info_hash = hashlib.sha1(str(info_dict).encode()).hexdigest()
         
 class File:
     def __init__(self, path, torrent_txt_path):
@@ -83,7 +103,6 @@ class File:
         self.filePath = path
         self.piece_List = [] 
         
-    def _initialize_piece_list(self):
         
     def _initialize_piece_states(self):
         pieces_from_file = list(split_into_pieces(self.filePath, self.meta_info.pieceLength))
@@ -106,8 +125,6 @@ class File:
         print(f"Downloaded Bytes: {self.downloadedBytes}")
         print(f"Sent Meta Info: {self.sentMetaInfo}")
         print(f"Bitfield Message: {self.bitFieldMessage}")
-        
-        
         
     # split a file to share     
     def split_file(self, file_name, piece_size):

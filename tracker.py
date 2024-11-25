@@ -41,7 +41,7 @@ class tracker:
 
         header = "update_client_list:"
         pickle_client_addr_list = pickle.dumps(self.client_addr_list)
-        message = header.encode("utf-8") + pickle_client_addr_list
+        message = header.encode(CODE) + pickle_client_addr_list
         client_socket.sendall(message)
     
         print("Client list sent.")
@@ -58,7 +58,7 @@ class tracker:
                 if not data:
                     break
 
-                command = data[:(data.find(b":"))].decode("utf-8")
+                command = data[:(data.find(b":"))].decode(CODE)
                 if command == "update_client_list":
                     self.update_client_list(client_socket)
                 elif command == "disconnect":
@@ -97,7 +97,7 @@ class tracker:
 
                 # Receive client port separately
                 string_client_port = client_socket.recv(1024)
-                client_port = int(string_client_port.decode("utf-8"))
+                client_port = int(string_client_port.decode(CODE))
 
                 # Create thread
                 thread_client = Thread(target=self.new_conn_client, args=(client_socket, client_ip, client_port))
@@ -125,7 +125,7 @@ class tracker:
             return
 
         header = "disconnect:"
-        message = header.encode("utf-8")
+        message = header.encode(CODE)
         conn.sendall(message)
 
         print(f"Disconnect requested to client ('{client_ip}', {client_port}).")
@@ -149,17 +149,17 @@ class tracker:
             print(f"Received Metainfo: {metainfo_dict}")
 
             file_name = metainfo_dict.get('file_name')
-            pieces = metainfo_dict.get('pieces') 
+            info_hash = metainfo_dict.get('info_hash') 
 
-            if not file_name or not pieces:
+            if not file_name or not info_hash:
                 print("Invalid metainfo received, missing 'file_name' or 'pieces'.")
                 return
             
-            self.update_client_info(client_ip, client_port, file_name, pieces)
+            self.update_client_info(client_ip, client_port, file_name, info_hash)
         except Exception as e:
             print(f"Error receiving metainfo from {client_ip}:{client_port}: {e}")
             
-    def update_client_info(self, client_ip, client_port, file_name, pieces): #! WORKING ON THIS
+    def update_client_info(self, client_ip, client_port, file_name, info_hash): #! WORKING ON THIS
         try:
             # Locking client_info for thread safety
             with self.lock:
@@ -168,13 +168,13 @@ class tracker:
                 if client_key not in self.client_info:
                     self.client_info[client_key] = {}
 
-                self.client_info[client_key][file_name] = pieces
+                self.client_info[client_key][file_name] = info_hash
 
-            print(f"Updated client_info: {client_key} now has file '{file_name}' with pieces {pieces}.")
+            print(f"Updated client_info: {client_key} now has file '{file_name}' with info_hash {info_hash}.")
         except Exception as e:
             print(f"Error updating client_info for {client_ip}:{client_port}: {e}")
 
-    def find_peer_have(self, pieces): #! WORKING ON THIS
+    def find_peer_have(self, info_hash): #! WORKING ON THIS
         try:
             peer_list = []
 
@@ -182,14 +182,14 @@ class tracker:
             with self.lock:
                 for client_key, files in self.client_info.items():
                     for file_name, client_pieces in files.items():
-                        if any(piece in client_pieces for piece in pieces):
+                        if any(piece in client_pieces for piece in info_hash):
                             if client_key not in peer_list: 
                                 peer_list.append(client_key)
 
-            print(f"Peers with pieces {pieces}: {peer_list}")
+            print(f"Peers with info_hash {info_hash}: {peer_list}")
             return peer_list  
         except Exception as e:
-            print(f"Error finding peers with pieces {pieces}: {e}")
+            print(f"Error finding peers with info_hash {info_hash}: {e}")
             return []    
 
 

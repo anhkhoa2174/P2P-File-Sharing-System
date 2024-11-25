@@ -26,6 +26,7 @@ class peer:
         self.isRunning = False
         self.peerDownloadingFrom = []
         self.server = []
+        self.processedFileName = []  # List of already processed files
          # A socket for listening from other peers in the network
         self.peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.peerSocket.bind((self.peerIP, self.portForPeer))
@@ -52,38 +53,46 @@ class peer:
         ownRespository = os.listdir("peer_respo")
         if len(ownRespository) == 0:
             return self.fileInRes
-        else: 
+        else:
             for name in ownRespository:
-                if(os.path.getsize("peer_respo/" + name) == 0):
-                    os.remove("peer_respo/" + name)
+                # Skip files that are already processed
+                if name in self.processedFileName:
+                    continue
+
+                file_path = "peer_respo/" + name
+                if os.path.getsize(file_path) == 0:
+                    os.remove(file_path)
                 else:
-                    for i in self.fileInRes:
-                        file_obj = File("peer_respo/"+name, "")
-                        self.fileInRes.append(file_obj, "")
-                        folder_path = os.path.join("peer_respo", i.Metainfo.filename)
-                        
-                        if not os.path.isdir(folder_path):
-                            file_obj.split_file("peer_respo/"+name, file_obj.length)
-                    
-                        file_obj.meta_info_from_torrent = file_obj.meta_info
-                        file_obj._initialize_piece_states()
-                        file_obj.print_file_information() #! DUNG DE TEST
-                        self.save_metainfo_to_txt(file_obj.meta_info) 
-        return  self.fileInRes
+                    # Add the file to fileInRes and mark it as processed
+                    file_obj = File(file_path, "")
+                    self.fileInRes.append(file_obj)
+                    self.processedFileName.append(name)
+
+                    # Testing creating metainfo
+                    file_obj.meta_info_from_torrent = file_obj.meta_info
+                    file_obj._initialize_piece_states()
+
+                    file_obj.print_file_information()  # For testing
+
+                    self.save_metainfo_to_txt(file_obj.meta_info)
+
+        return self.fileInRes
     
     def save_metainfo_to_txt(self, metainfo):
         # The path to txt file that saves metainfo of a specific file
         file_path = os.path.join(self.peerOwnRes, f"{metainfo.fileName}_metainfo.txt")
         
         # Write metainfo into file
-        with open(file_path, "w", encoding="utf-8") as file:
+        with open(file_path, "w", encoding=CODE) as file:
             file.write(f"File Name: {metainfo.fileName}\n")
             file.write(f"File Length: {metainfo.length} bytes\n")
             file.write(f"Piece Length: {metainfo.pieceLength} bytes\n")
             file.write(f"Number of Pieces: {int(metainfo.numOfPieces)}\n")
+            file.write(f"Piece List: {(metainfo.piecesList)}\n")
             file.write(f"SHA-1 Hashes of Pieces: {metainfo.pieces}\n")
+            file.write(f"Info Hash: {metainfo.info_hash}\n")
         
-        print(f"Metainfo for {metainfo.fileName} has been saved to {file_path}")
+        print(f"Metainfo for {metainfo.fileName} has been saved to {file_path}") 
     
     # List of clients connected to the Tracker
     def list_clients(self):
@@ -113,7 +122,7 @@ class peer:
 
         # Create command for the Tracker
         header = "update_client_list:"
-        message = header.encode("utf-8")
+        message = header.encode(CODE)
         conn.sendall(message)
 
         print(f"Client list requested to Tracker ({server_host}:{server_port}).")     
@@ -130,7 +139,7 @@ class peer:
                 if not data:
                     break
 
-                command = data[:(data.find(b":"))].decode("utf-8")
+                command = data[:(data.find(b":"))].decode(CODE)
                 if command == "update_client_list":
                     # Receive the clients list from the Tracker
                     client_addr_list = pickle.loads(data[len("update_client_list:"):])
@@ -157,7 +166,7 @@ class peer:
 
         # Send client port separately
         string_client_port = str(self.portForPeer)
-        tracker_socket.sendall(string_client_port.encode("utf-8"))
+        tracker_socket.sendall(string_client_port.encode(CODE))
         time.sleep(0.1) # SPE: neighbour sendall()
 
         # Create thread
@@ -181,12 +190,12 @@ class peer:
                 if not data:
                     break
 
-                command = data[:(data.find(b":"))].decode("utf-8")
+                command = data[:(data.find(b":"))].decode(CODE)
                 if command == "disconnect":
                     break
                 
                 elif command == "download":
-                    file_name = data[(data.find(b":") + 1):].decode("utf-8")
+                    file_name = data[(data.find(b":") + 1):].decode(CODE)
                     print(f"Received request download_file '{file_name}' from peer ({peer_ip}:{peer_port})")
                     self.send_file(peer_socket, file_name)
                     
@@ -194,7 +203,7 @@ class peer:
                     data_receive = data[(data.find(b":") + 1):]
                     self.receive_file(peer_socket, data_receive)
                 elif command == "not_receive_file":
-                    data_receive = data[(data.find(b":") + 1):].decode("utf-8")
+                    data_receive = data[(data.find(b":") + 1):].decode(CODE)
                     print(f"{data_receive} from peer ({peer_ip}:{peer_port})")
                     
                 else:
@@ -231,7 +240,7 @@ class peer:
     
         # Send peer port separately
         string_peer_port = str(self.portForPeer)
-        peer_socket.send(string_peer_port.encode("utf-8"))
+        peer_socket.send(string_peer_port.encode(CODE))
         
         # Create thread
         thread_peer = Thread(target=self.new_conn_peer, args=(peer_socket, peer_ip, peer_port))
@@ -255,7 +264,7 @@ class peer:
                 print(f"Requesting file '{file_name}' from peer {peer_ip}:{peer_port}..............")
                 
                 request_message = f"download:{file_name}"
-                peer_socket.send(request_message.encode("utf-8"))
+                peer_socket.send(request_message.encode(CODE))
 
             except Exception as e:
                 print(f"Error requesting file: {e}")  
@@ -289,7 +298,7 @@ class peer:
             
             header = f"receive_file:{file_name}:{file_size}"
 
-            data_to_send = header.encode("utf-8") + b"\n" + file_data
+            data_to_send = header.encode(CODE) + b"\n" + file_data
 
             conn.sendall(data_to_send)
             
@@ -298,7 +307,7 @@ class peer:
         except FileNotFoundError:
             print(f"File {file_name} not found.")
             error_message = f"not_receive_file:File '{file_name}' not found."
-            conn.sendall(error_message.encode("utf-8")) 
+            conn.sendall(error_message.encode(CODE)) 
         except Exception as e:
             print(f"Error sending file {file_name}: {e}")
             
@@ -309,8 +318,8 @@ class peer:
             parts = header.split(b':')
 
             if len(parts) == 2:
-                file_name = parts[0].decode("utf-8")
-                file_size = int(parts[1].decode("utf-8"))
+                file_name = parts[0].decode(CODE)
+                file_size = int(parts[1].decode(CODE))
             else:
                 print("Invalid data format.")
 
@@ -348,7 +357,7 @@ class peer:
                 peer_ip = addr[0]
 
                 # Receive peer port separately
-                string_peer_port = peer_socket.recv(1024).decode("utf-8")
+                string_peer_port = peer_socket.recv(1024).decode(CODE)
                 peer_port = int(string_peer_port)
 
                 # Create thread
@@ -377,7 +386,7 @@ class peer:
             return
 
         header = "disconnect:"
-        message = header.encode("utf-8")
+        message = header.encode(CODE)
         conn.sendall(message)
 
         print(f"Disconnect requested to Tracker ({server_host}:{server_port}).")
@@ -391,7 +400,7 @@ class peer:
             return
 
         header = "disconnect:"
-        message = header.encode("utf-8")
+        message = header.encode(CODE)
         conn.sendall(message)
 
         print(f"Disconnect requested to peer ('{peer_ip}', {peer_port}).")
@@ -425,12 +434,14 @@ class peer:
                     'file_name': metainfo.fileName,
                     'file_size': metainfo.length,
                     'piece_length': metainfo.pieceLength,
+                    'pieces_list': metainfo.piecesList,
                     'pieces': metainfo.pieces,
                     'num_of_pieces': metainfo.numOfPieces,
+                    'info_hash': metainfo.info_hash
                 }
 
             try:
-                header = "send_metainfo:".encode("utf-8")
+                header = "send_metainfo:".encode(CODE)
                 header += pickle.dumps(metainfo_dict)
                 file.sentMetaInfo = True
                 conn.sendall(header)
@@ -448,7 +459,7 @@ class peer:
             return
 
         try:
-            header = "find_peer_have:".encode("utf-8")
+            header = "find_peer_have:".encode(CODE)
             header += pickle.dumps(pieces)
             conn.sendall(header)
             time.sleep(0.1)
