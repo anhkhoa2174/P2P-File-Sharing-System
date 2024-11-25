@@ -50,6 +50,8 @@ class peer:
     
     
     def getFileInRes(self) -> list:
+ 
+       
         ownRespository = os.listdir("peer_respo")
         if len(ownRespository) == 0:
             return self.fileInRes
@@ -67,10 +69,15 @@ class peer:
                     file_obj = File(file_path, "")
                     self.fileInRes.append(file_obj)
                     self.processedFileName.append(name)
-
-                    # Testing creating metainfo
-                    file_obj.meta_info_from_torrent = file_obj.meta_info
-                    file_obj._initialize_piece_states()
+                    
+                    
+    
+                    file_obj.split_file(name, file_obj.meta_info.length, 512 * 1024)
+                    
+                    if file_obj.meta_info_from_torrent.info_hash == None:
+                        # Testing creating metainfo
+                        file_obj.meta_info_from_torrent = file_obj.meta_info
+                        file_obj._initialize_piece_states()
 
                     file_obj.print_file_information()  # For testing
 
@@ -146,6 +153,28 @@ class peer:
                     print("Client list received.")
                 elif command == "disconnect":
                     break
+                if command == "peer_list": #! WORKING ON THIS 
+                    # Receive the clients list from the Tracker
+                    separator_index = data.rfind(b":")
+                    
+                    if separator_index == -1:
+                        raise ValueError("Invalid data format. Missing separator for hashcode.")
+                    
+                    part1 = data[:separator_index]
+                    part2 = data[separator_index + 1:]
+
+
+                    peer_list = pickle.loads(part1[len("peer_list:"):])
+
+                    # Phần sau dấu ":" cuối là hashcode
+                    hashcode = part2.decode("utf-8")
+
+                    print(f"Peer list received: {peer_list},hashcode:{hashcode}")
+                    
+                    for peer_ip, peer_port in peer_list:
+                        self.connect_to_peer(peer_ip,peer_port)
+    
+                        
             except socket.timeout:
                 continue
             except Exception as e:
@@ -450,7 +479,7 @@ class peer:
             except Exception as e:
                 print(f"Failed to send Metainfo for {metainfo.fileName} to tracker: {e}")
 
-    def find_peer_have(self, pieces, server_host, server_port): #! WORKING ON THIS 
+    def find_peer_have(self, hash_info, server_host, server_port): #! WORKING ON THIS 
         if (server_host, server_port) in self.connected_tracker_addr_list:
             index = self.connected_tracker_addr_list.index((server_host, server_port))
             conn = self.connected_tracker_conn_list[index]
@@ -459,21 +488,21 @@ class peer:
             return
 
         try:
+            print(f"Asking tracker to find peer list with magnet text {hash_info}.")
             header = "find_peer_have:".encode(CODE)
-            header += pickle.dumps(pieces)
+            header += pickle.dumps(hash_info)
             conn.sendall(header)
             time.sleep(0.1)
-            print(f"Asking tracker to find peer list with magnet text {pieces}.")
+            
         except Exception as e:
-            print(f"Failed to ask for tracker to find peer list with magnet text {pieces}.: {e}")
+            print(f"Failed to ask for tracker to find peer list with magnet text {hash_info}.: {e}")
        
     
         
     #Merge a file received
-    def merge_file(self, file_name, file_extension):
+    def merge_file(self, file_name):
         import os
 
-        # Đường dẫn các folder trong dự án
         root_folder = os.getcwd()  # Thư mục gốc của project
         file_have_folder = os.path.join(root_folder, "peer_respo")
         file_share_folder = os.path.join(root_folder, "FileShare")
@@ -492,9 +521,8 @@ class peer:
             print(f"Folder '{file_name}' not found in 'Fileshare'.")
             return None
 
-        # Tên file mới được ghép
-        merged_file_name = f"{file_name}{file_extension}"
-        merged_file_path = os.path.join(file_have_folder, merged_file_name)
+
+        merged_file_path = os.path.join(file_have_folder, file_name)
 
         try:
             with open(merged_file_path, "wb") as merged_file:
@@ -509,7 +537,7 @@ class peer:
                     with open(piece_path, "rb") as piece_file:
                         merged_file.write(piece_file.read())
             
-            print(f"File '{merged_file_name}' has been successfully merged in '{file_have_folder}'.")
+            print(f"File '{file_name}' has been successfully merged in '{file_have_folder}'.")
             return merged_file_path
 
         except Exception as e:
@@ -540,15 +568,14 @@ if __name__ == "__main__":
             #         print("Usage: split_file <file_name>")
             elif command.startswith("merge_file"):
                 parts = command.split()
-                if len(parts) == 3:
+                if len(parts) == 2:
                     file_name = parts[1]
-                    file_extension = parts[2]
                     try:
-                        my_peer.merge_file(file_name, file_extension)
+                        my_peer.merge_file(file_name)
                     except ValueError:
                         print("Invalid port.")
                 else:
-                    print("Usage: merge_file <file_name> <file_extension>")
+                    print("Usage: merge_file <file_name>")
             elif command.startswith("connect_to_tracker"):
                 parts = command.split()
                 if len(parts) == 3:
@@ -632,9 +659,10 @@ if __name__ == "__main__":
             elif command == "send_metainfo": #! WORKING ON THIS
                 my_peer.send_metainfo_to_tracker(server_host, server_port)
             elif command == "find_peer_have": #! WORKING ON THIS
-                pieces = input("Enter magnet text: ")
-                #pieces = sha1_hash(pieces.encode('utf-8')).hex()
-                my_peer.find_peer_have(pieces, server_host, server_port)
+                torrent_path = input("Enter torrent path: ")
+                downloadfile = File("",torrent_path)
+                hash_info = downloadfile.meta_info_from_torrent.info_hash
+                my_peer.find_peer_have(hash_info, server_host, server_port)
             elif command == "exit":
                 my_peer.disconnect_from_tracker(server_host, server_port)
                 my_peer.disconnect_from_all_peers()

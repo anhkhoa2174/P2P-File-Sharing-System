@@ -62,13 +62,14 @@ class tracker:
                 if command == "update_client_list":
                     self.update_client_list(client_socket)
                 elif command == "disconnect":
+                    self.remove_client_info(client_ip,client_port)
                     break
                 elif command == "send_metainfo": #! WORKING ON THIS
                     metainfo_data = pickle.loads(data[len("send_metainfo:"):])
                     self.receive_metainfo(metainfo_data, client_ip, client_port)
                 elif command == "find_peer_have":
                     pieces = pickle.loads(data[len("find_peer_have:"):])
-                    self.find_peer_have(pieces)
+                    self.find_peer_have(pieces, client_ip, client_port)
             except socket.timeout:
                 continue
             except Exception as e:
@@ -155,42 +156,80 @@ class tracker:
                 print("Invalid metainfo received, missing 'file_name' or 'pieces'.")
                 return
             
-            self.update_client_info(client_ip, client_port, file_name, info_hash)
+            self.update_client_info(client_ip, client_port, info_hash)
         except Exception as e:
             print(f"Error receiving metainfo from {client_ip}:{client_port}: {e}")
+        
             
-    def update_client_info(self, client_ip, client_port, file_name, info_hash): #! WORKING ON THIS
+    def update_client_info(self, client_ip, client_port, hashcode):  
+        try:
+            # Locking client_info for thread safety
+            with self.lock:
+                client_key = (client_ip, client_port)  
+
+                if client_key in self.client_info:
+                    self.client_info[client_key] += hashcode
+                else:
+                    self.client_info[client_key] = hashcode  
+
+            print(f"Updated client_info: {client_key} now has hashcode '{hashcode}'.")
+        except Exception as e:
+            print(f"Error updating client_info for {client_ip}:{client_port}: {e}")
+            
+    def find_peer_have(self, hashcode, client_ip, client_port):
+        try:
+            peer_list = []  
+
+            # Locking client_info for thread safety
+            with self.lock:
+                for client_key, client_hashcode in self.client_info.items():
+                    #print(f"{client_key} with {client_hashcode}") #! THIS IS ONLY USED FOR DEBUGGING, REMEMBER TO DELETE
+                    if hashcode in client_hashcode:
+                        peer_list.append(client_key) 
+
+            print(f"Peers with hashcode '{hashcode}': {peer_list}")
+        except Exception as e:
+            print(f"Error finding peers with hashcode '{hashcode}': {e}")
+
+        self.send_peer_have(peer_list, client_ip, client_port, hashcode)
+           
+    def send_peer_have(self, peer_list, client_ip, client_port, hashcode): #! WORKING ON THIS
+        if (client_ip, client_port) in self.client_addr_list:
+            index = self.client_addr_list.index((client_ip, client_port))
+            conn = self.client_conn_list[index]
+        else:
+            print(f"No connection found with client {client_ip}:{client_port}.")
+            return
+
+        try :
+            header = "peer_list:".encode("utf-8")
+            header += pickle.dumps(peer_list)
+            header += f":{hashcode}".encode("utf-8")
+            conn.sendall(header)
+            time.sleep(0.1)
+            print(f"Complete sending peer list to {client_ip} : {client_port}")
+        except Exception as e:
+            print(f"Failed to send peer list to {client_ip} : {client_port}: {e}")   
+            
+    def remove_client_info(self, client_ip, client_port): #! WORKING ON THIS 
         try:
             # Locking client_info for thread safety
             with self.lock:
                 client_key = (client_ip, client_port)
-
-                if client_key not in self.client_info:
-                    self.client_info[client_key] = {}
-
-                self.client_info[client_key][file_name] = info_hash
-
-            print(f"Updated client_info: {client_key} now has file '{file_name}' with info_hash {info_hash}.")
+                if client_key in self.client_info:
+                    del self.client_info[client_key]
+                    #! ONLY USED FOR DEBUGGING
+                    #print(f"Removed client_info for {client_key}.")
+                else:
+                    print(f"Client {client_key} not found in client_info.")
         except Exception as e:
-            print(f"Error updating client_info for {client_ip}:{client_port}: {e}")
+            print(f"Error removing client_info for {client_ip}:{client_port}: {e}")
+                     
+    def print_client_info(self):
+        print(f"{self.client_info}")
+        
+        
 
-    def find_peer_have(self, info_hash): #! WORKING ON THIS
-        try:
-            peer_list = []
-
-            # Locking client_info for thread safety
-            with self.lock:
-                for client_key, files in self.client_info.items():
-                    for file_name, client_pieces in files.items():
-                        if any(piece in client_pieces for piece in info_hash):
-                            if client_key not in peer_list: 
-                                peer_list.append(client_key)
-
-            print(f"Peers with info_hash {info_hash}: {peer_list}")
-            return peer_list  
-        except Exception as e:
-            print(f"Error finding peers with info_hash {info_hash}: {e}")
-            return []    
 
 
 

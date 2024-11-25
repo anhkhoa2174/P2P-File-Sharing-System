@@ -63,6 +63,13 @@ class MetainfoTorrent:
             self.info_hash = None
             self.numOfPieces = None
 
+    def _extract_value(self,content, key):
+
+        for line in content.splitlines():
+            if line.startswith(key):
+                return line.split(':', 1)[1].strip()  # Tách giá trị sau dấu ":" và loại bỏ khoảng trắng.
+        raise ValueError(f"Key '{key}' not found in the content.")
+
     def _parse_torrent_file(self, torrent_txt_path):
         with open(torrent_txt_path, 'r') as f:
             content = f.read()
@@ -123,23 +130,23 @@ class File:
         print(f"Downloaded Pieces Index: {self.piece_idx_downloaded}")
         print(f"Not Downloaded Pieces Index: {self.piece_idx_not_downloaded}")
         print(f"Downloaded Bytes: {self.downloadedBytes}")
-        print(f"Sent Meta Info: {self.sentMetaInfo}")
+        #print(f"Sent Meta Info: {self.sentMetaInfo}")
         print(f"Bitfield Message: {self.bitFieldMessage}")
         
     # split a file to share     
-    def split_file(self, file_name, piece_size):
+    def split_file(self, file_name, file_size, piece_size):
  
         # Đường dẫn các folder trong dự án
         root_folder = os.getcwd()  # Thư mục gốc của project
         file_have_folder = os.path.join(root_folder, "peer_respo")
-        file_share_folder = os.path.join(root_folder, "Fileshare")
+        file_share_folder = os.path.join(root_folder, "FileShare")
         
         # Đảm bảo các folder peer_respo và Fileshare tồn tại
         if not os.path.exists(file_have_folder):
             print(f"'peer_respo' folder does not exist in the project root: {root_folder}")
             return None
         if not os.path.exists(file_share_folder):
-            print(f"'Fileshare' folder does not exist in the project root: {root_folder}")
+            print(f"'FileShare' folder does not exist in the project root: {root_folder}")
             return None
         
         # Kiểm tra xem file có trong folder peer_respo không
@@ -150,35 +157,41 @@ class File:
 
         # Tạo folder mới trong Fileshare với tên là file
         output_folder = os.path.join(file_share_folder, os.path.splitext(file_name)[0])
+        
         if not os.path.exists(output_folder):
             os.makedirs(output_folder)
+        else :
+            print(f"Chua split ma co folder nay, bip a")
+            return None
 
         try:
-            with open(file_path, "rb") as f:
-                file_size = os.path.getsize(file_path)
+            with open(file_path, "rb") as f: 
                 num_pieces = (file_size // piece_size) + (1 if file_size % piece_size != 0 else 0)  
-                
-                
                 
                 print(f"Splitting '{file_name}' into {num_pieces} pieces...")
                 
                 for i in range(num_pieces):
                     # Đặt tên cho từng piece
                     piece_path = os.path.join(output_folder, f"piece{i+1}")
-                    
-                    # Đọc dữ liệu cho từng phần
-                    piece_data = f.read(piece_size)
-                    
-                    # Ghi dữ liệu vào file mới
-                    with open(piece_path, "wb") as piece_file:
-                        piece_file.write(piece_data)
-                    
-                    if i < num_pieces-1:
-                        self.piece_list.append(piece(piece_size, self.meta_info.pieces, self.filePath, piece_path))
-                    
-                    else:
-                        self.piece_list.append(piece(file_size - piece_size * num_pieces, self.meta_info.pieces, self.filePath, piece_path))
-                    
+                                 
+                    if(file_size <= piece_size):
+                        self.piece_List.append(piece(file_size, self.meta_info.pieces, self.filePath, piece_path))
+                        piece_data = f.read(file_size)
+                        with open(piece_path, "wb") as piece_file:
+                            piece_file.write(piece_data)
+                    else:     
+                        if i < num_pieces-1:
+                            self.piece_List.append(piece(piece_size, self.meta_info.pieces, self.filePath, piece_path))
+                            piece_data = f.read(piece_size)
+                            with open(piece_path, "wb") as piece_file:
+                                piece_file.write(piece_data)
+                        
+                        else:
+                            self.piece_List.append(piece(file_size - piece_size * num_pieces, self.meta_info.pieces, self.filePath, piece_path))
+                            piece_data = f.read(file_size - piece_size * num_pieces)
+                            with open(piece_path, "wb") as piece_file:
+                                piece_file.write(piece_data)
+                            
                     print(f"Created: {piece_path}")
             
             print(f"File '{file_name}' has been split into {num_pieces} pieces stored in '{output_folder}'.")
