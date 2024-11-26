@@ -30,6 +30,7 @@ class peer:
          # A socket for listening from other peers in the network
         self.peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.peerSocket.bind((self.peerIP, self.portForPeer))
+        self.file_info_array = []   # mang chua cac mapping cua bitfield message
 
         print(f"A peer with IP address {self.peerIP}, ID {self.portForTracker} has been created")
 
@@ -48,9 +49,32 @@ class peer:
         return peerOwnRes
     
     
-    
+    def print_file_info_array(self):
+        for entry in self.file_info_array:
+            print(f"Infohash: {entry['infohash']}")
+            print("Mapping:")
+            for ip, bitfield in entry["mapping"].items():
+                print(f"  IP: {ip}, BitfieldMessage: {bitfield}")
+            print()
+            
+            
+    def add_or_update_file_info_array(self, infohash, peer_ip, bitfieldMessage):
+
+        # Tìm xem infohash đã tồn tại trong danh sách chưa
+        file_info = next((item for item in self.file_info_array if item["infohash"] == infohash), None)
+        
+        if file_info:
+            # Nếu đã tồn tại, cập nhật mapping
+            file_info["mapping"][peer_ip] = bitfieldMessage
+        else:
+            # Nếu chưa tồn tại, thêm mới vào array
+            new_entry = {
+                "infohash": infohash,
+                "mapping": {peer_ip: bitfieldMessage}
+            }
+            self.file_info_array.append(new_entry)
+        
     def getFileInRes(self) -> list:
- 
        
         ownRespository = os.listdir("peer_respo")
         if len(ownRespository) == 0:
@@ -171,9 +195,26 @@ class peer:
 
                     print(f"Peer list received: {peer_list},hashcode:{hashcode}")
                     
+                    downloadFile = None
+                    
+                    for file in self.fileInRes:
+                        if file.meta_info_from_torrent.info_hash == hashcode:
+                            downloadFile = file
+                            
+                    print(f"fileName:{downloadFile.meta_info_from_torrent.fileName}")
+ 
+                            
                     for peer_ip, peer_port in peer_list:
-                        self.connect_to_peer(peer_ip,peer_port)
-    
+                        connected = True
+                        for peer_ip2, peer_port2 in self.connected_client_addr_list:
+                            if peer_ip == peer_ip2 and peer_port == peer_port2:
+                                connected = False
+                                break
+                            
+                        if connected:
+                            self.connect_to_peer(peer_ip,peer_port)
+                            
+                        self.send_infohash(peer_ip,peer_port,hashcode)   
                         
             except socket.timeout:
                 continue
@@ -228,6 +269,31 @@ class peer:
                     print(f"Received request download_file '{file_name}' from peer ({peer_ip}:{peer_port})")
                     self.send_file(peer_socket, file_name)
                     
+                elif command == "info":
+                    info_hash = data[(data.find(b":") + 1):].decode(CODE)
+                    print(f"Received info_hash '{info_hash}' from peer ({peer_ip}:{peer_port})")
+                    self.send_bfm(peer_socket, info_hash)
+                    
+                elif command == "bfm":
+                    try:
+                        bfm = data[(data.find(b":") + 1):].decode(CODE)
+                        
+                        separator_index = bfm.find(":")
+                        
+                        if separator_index == -1:
+                            raise ValueError("Invalid bfm format. Missing separator for infohash and bitFieldMessage.")
+                        
+                        infohash = bfm[:separator_index] 
+                        bitFieldMessage = bfm[separator_index + 1:] 
+
+                        print(f"Received bfm with infohash: '{infohash}', bitFieldMessage: '{bitFieldMessage}' from peer ({peer_ip}:{peer_port})")
+                        
+                        self.add_or_update_file_info_array(infohash, peer_ip, bitFieldMessage)
+                        self.print_file_info_array()
+                        
+                    except Exception as e:
+                        print(f"Error processing bfm: {e}")
+                    
                 elif command == "receive_file":
                     data_receive = data[(data.find(b":") + 1):]
                     self.receive_file(peer_socket, data_receive)
@@ -280,7 +346,37 @@ class peer:
         self.connected_client_conn_list.append(peer_socket)
         self.connected_client_addr_list.append((peer_ip, peer_port))
 
-    # Download a file from one peer
+    # Send info hash to a peer
+    def send_infohash(self, peer_ip, peer_port, infohash):
+        try:
+            if (peer_ip, peer_port) in self.connected_client_addr_list:
+                index = self.connected_client_addr_list.index((peer_ip, peer_port))
+                peer_socket = self.connected_client_conn_list[index]
+            else:
+                print(f"No connection found with peer {peer_ip}:{peer_port}.")
+                return
+            
+            request_message = f"info:{infohash}"
+            peer_socket.send(request_message.encode(CODE))
+            
+            
+            print(f"sent successful infohash to {peer_ip}:{peer_port}") 
+        except Exception as e:
+            print(f"Error sending infohash: {e}")  
+            
+    def send_bfm(self, conn, infohash):   
+        try:         
+            for file in self.fileInRes:
+                if file.meta_info_from_torrent.info_hash == infohash:
+                    file._initialize_piece_states()
+                    bfm = f"bfm:{infohash}:{file.bitFieldMessage}"
+                    conn.send(bfm.encode(CODE))
+        except Exception as e:
+                print(f"Error send_bfm: {e}")  
+                
+                
+                            
+        #print(f"fileName:{downloadFile.meta_info_from_torrent.fileName}")
     def download_file(self, peer_ip, peer_port, file_name):
             try:
                 if (peer_ip, peer_port) in self.connected_client_addr_list:
@@ -480,6 +576,14 @@ class peer:
                 print(f"Failed to send Metainfo for {metainfo.fileName} to tracker: {e}")
 
     def find_peer_have(self, hash_info, server_host, server_port): #! WORKING ON THIS 
+        new_entry = {
+            "infohash": hash_info,
+            "mapping": {}
+        }
+        
+        self.file_info_array.append(new_entry)
+        
+        
         if (server_host, server_port) in self.connected_tracker_addr_list:
             index = self.connected_tracker_addr_list.index((server_host, server_port))
             conn = self.connected_tracker_conn_list[index]
@@ -555,17 +659,6 @@ if __name__ == "__main__":
             command = input("Peer> ")
             if command == "test":
                 print("The program is running normally.")
-            # elif command.startswith("split_file"):
-            #     #my_peer.fileInRes
-            #     parts = command.split()
-            #     if len(parts) == 2:
-            #         file_name = parts[1]
-            #         try:
-            #             my_peer.split_file(file_name, 50 * 1024)
-            #         except ValueError:
-            #             print("Invalid port.")
-            #     else:
-            #         print("Usage: split_file <file_name>")
             elif command.startswith("merge_file"):
                 parts = command.split()
                 if len(parts) == 2:
@@ -661,6 +754,9 @@ if __name__ == "__main__":
             elif command == "find_peer_have": #! WORKING ON THIS
                 torrent_path = input("Enter torrent path: ")
                 downloadfile = File("",torrent_path)
+                
+                my_peer.fileInRes.append(downloadfile)
+                
                 hash_info = downloadfile.meta_info_from_torrent.info_hash
                 my_peer.find_peer_have(hash_info, server_host, server_port)
             elif command == "exit":
