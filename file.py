@@ -102,6 +102,7 @@ class File:
     def __init__(self, path, torrent_txt_path):
         self.meta_info = Metainfo(path)
         self.meta_info_from_torrent = MetainfoTorrent(torrent_txt_path)
+        
         self.piece_idx_downloaded = []  
         self.piece_idx_not_downloaded = []
         self.downloadedBytes = self.meta_info.length if self.meta_info.length else 0
@@ -112,6 +113,8 @@ class File:
         
         
     def _initialize_piece_states(self):
+        self.piece_idx_downloaded = []  
+        self.piece_idx_not_downloaded = []
         pieces_from_file = list(split_into_pieces(self.filePath, self.meta_info.pieceLength))
         for idx, piece in enumerate(pieces_from_file):
             piece_hash = sha1_hash(piece).hex()
@@ -123,6 +126,7 @@ class File:
         self._create_bit_field_message()
 
     def _create_bit_field_message(self):
+        self.bitFieldMessage = []
         bit_field = ['1' if idx in self.piece_idx_downloaded else '0' for idx in range(self.meta_info.numOfPieces)]
         self.bitFieldMessage = ''.join(bit_field)
 
@@ -172,7 +176,7 @@ class File:
                 
                 for i in range(num_pieces):
                     # Đặt tên cho từng piece
-                    piece_path = os.path.join(output_folder, f"piece{i+1}")
+                    piece_path = os.path.join(output_folder, f"piece{i}")
                                  
                     if(file_size <= piece_size):
                         self.piece_List.append(piece(file_size, self.meta_info.pieces, self.filePath, piece_path))
@@ -181,14 +185,14 @@ class File:
                             piece_file.write(piece_data)
                     else:     
                         if i < num_pieces-1:
-                            self.piece_List.append(piece(piece_size, self.meta_info.pieces, self.filePath, piece_path))
+                            self.piece_List.append(piece(piece_size, self.meta_info.piecesList[i], self.filePath, piece_path))
                             piece_data = f.read(piece_size)
                             with open(piece_path, "wb") as piece_file:
                                 piece_file.write(piece_data)
                         
                         else:
-                            self.piece_List.append(piece(file_size - piece_size * num_pieces, self.meta_info.pieces, self.filePath, piece_path))
-                            piece_data = f.read(file_size - piece_size * num_pieces)
+                            self.piece_List.append(piece(file_size - piece_size * num_pieces, self.meta_info.piecesList[i], self.filePath, piece_path))
+                            piece_data = f.read(file_size - piece_size * (num_pieces-1))
                             with open(piece_path, "wb") as piece_file:
                                 piece_file.write(piece_data)
                             
