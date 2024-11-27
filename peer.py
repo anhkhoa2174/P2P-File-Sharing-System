@@ -73,6 +73,30 @@ class peer:
                 "mapping": {peer_ip: bitfieldMessage}
             }
             self.file_info_array.append(new_entry)
+            
+    def wait_for_mapping_size(self, hashcode, peer_list):
+        mapping_size = 0
+
+        timeout = 30  # Đặt thời gian chờ tối đa
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            # Duyệt qua file_info_array để lấy mapping_size
+            for entry in self.file_info_array:
+                if entry['infohash'] == hashcode:
+                    mapping_size = len(entry['mapping'])
+                    break
+
+            # Kiểm tra nếu mapping_size đã khớp với kích thước của peer_list
+            if mapping_size == len(peer_list):
+                print("Thoa dieu kien de vo thuat toan roi")
+                return True
+
+            # Nếu điều kiện chưa thỏa mãn, chờ một thời gian ngắn trước khi thử lại
+            time.sleep(1)  # Đợi 1 giây trước khi kiểm tra lại
+
+        print(f"Timeout reached. Bi loi r, nguuuuuuuuuuuuuuuuuuuuuu {hashcode}.")
+        return False
         
     def getFileInRes(self) -> list:
        
@@ -101,7 +125,9 @@ class peer:
                     if file_obj.meta_info_from_torrent.info_hash == None:
                         # Testing creating metainfo
                         file_obj.meta_info_from_torrent = file_obj.meta_info
-                        file_obj._initialize_piece_states()
+                        
+                        with self.lock:
+                            file_obj._initialize_piece_states()
 
                     file_obj.print_file_information()  # For testing
 
@@ -177,6 +203,8 @@ class peer:
                     print("Client list received.")
                 elif command == "disconnect":
                     break
+                
+        #TIEN TRINH CHINH///////////////////////////////////////////////////////////////////
                 if command == "peer_list": #! WORKING ON THIS 
                     # Receive the clients list from the Tracker
                     separator_index = data.rfind(b":")
@@ -214,7 +242,16 @@ class peer:
                         if connected:
                             self.connect_to_peer(peer_ip,peer_port)
                             
-                        self.send_infohash(peer_ip,peer_port,hashcode)   
+                        self.send_infohash(peer_ip,peer_port,hashcode) 
+                    
+                    
+                    download = self.wait_for_mapping_size(hashcode, peer_list)
+                    
+                    if download:
+                        #self.download()
+                        print(f"bat dau download")
+                       
+    #TIEN TRINH CHINH///////////////////////////////////////////////////////////////////
                         
             except socket.timeout:
                 continue
@@ -288,8 +325,9 @@ class peer:
 
                         print(f"Received bfm with infohash: '{infohash}', bitFieldMessage: '{bitFieldMessage}' from peer ({peer_ip}:{peer_port})")
                         
-                        self.add_or_update_file_info_array(infohash, peer_ip, bitFieldMessage)
-                        self.print_file_info_array()
+                        with self.lock:
+                            self.add_or_update_file_info_array(infohash, peer_ip, bitFieldMessage)
+                            self.print_file_info_array()
                         
                     except Exception as e:
                         print(f"Error processing bfm: {e}")
@@ -368,9 +406,10 @@ class peer:
         try:         
             for file in self.fileInRes:
                 if file.meta_info_from_torrent.info_hash == infohash:
-                    file._initialize_piece_states()
-                    bfm = f"bfm:{infohash}:{file.bitFieldMessage}"
-                    conn.send(bfm.encode(CODE))
+                    with self.lock:
+                        file._initialize_piece_states()
+                        bfm = f"bfm:{infohash}:{file.bitFieldMessage}"
+                        conn.send(bfm.encode(CODE))
         except Exception as e:
                 print(f"Error send_bfm: {e}")  
                 
