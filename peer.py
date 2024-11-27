@@ -204,7 +204,7 @@ class peer:
                 elif command == "disconnect":
                     break
                 
-        #TIEN TRINH CHINH///////////////////////////////////////////////////////////////////
+          ##TODO TIẾN TRÌNH CHÍNH Ở DƯỚI
                 if command == "peer_list": #! WORKING ON THIS 
                     # Receive the clients list from the Tracker
                     separator_index = data.rfind(b":")
@@ -221,7 +221,7 @@ class peer:
                     # Phần sau dấu ":" cuối là hashcode
                     hashcode = part2.decode("utf-8")
 
-                    print(f"Peer list received: {peer_list},hashcode:{hashcode}")
+                    print(f"Peer list received: {peer_list}, hashcode:{hashcode}")
                     
                     downloadFile = None
                     
@@ -229,20 +229,20 @@ class peer:
                         if file.meta_info_from_torrent.info_hash == hashcode:
                             downloadFile = file
                             
-                    print(f"fileName:{downloadFile.meta_info_from_torrent.fileName}")
+                    #print(f"fileName:{downloadFile.meta_info_from_torrent.fileName}")
  
                             
                     for peer_ip, peer_port in peer_list:
                         connected = True
                         for peer_ip2, peer_port2 in self.connected_client_addr_list:
-                            if peer_ip == peer_ip2 and peer_port == peer_port2:
+                            if peer_ip == peer_ip2 and peer_port == peer_port2: #!!! CO NEN BO so sanh peer port khong ?
                                 connected = False
                                 break
                             
                         if connected:
-                            self.connect_to_peer(peer_ip,peer_port)
+                            self.connect_to_peer(peer_ip, peer_port)
                             
-                        self.send_infohash(peer_ip,peer_port,hashcode) 
+                        self.send_infohash(peer_ip, peer_port, hashcode) 
                     
                     
                     download = self.wait_for_mapping_size(hashcode, peer_list)
@@ -251,7 +251,7 @@ class peer:
                         #self.download()
                         print(f"bat dau download")
                        
-    #TIEN TRINH CHINH///////////////////////////////////////////////////////////////////
+    ##TODO TIẾN TRÌNH CHÍNH Ở TRÊN
                         
             except socket.timeout:
                 continue
@@ -394,11 +394,11 @@ class peer:
                 print(f"No connection found with peer {peer_ip}:{peer_port}.")
                 return
             
-            request_message = f"info:{infohash}"
+            request_message = f"info:{str(infohash)}"
             peer_socket.send(request_message.encode(CODE))
             
             
-            print(f"sent successful infohash to {peer_ip}:{peer_port}") 
+            print(f"Sent successful infohash to {peer_ip}:{peer_port}") 
         except Exception as e:
             print(f"Error sending infohash: {e}")  
             
