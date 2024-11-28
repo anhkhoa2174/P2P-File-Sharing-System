@@ -43,7 +43,7 @@ class tracker:
         pickle_client_addr_list = pickle.dumps(self.client_addr_list)
         message = header.encode(CODE) + pickle_client_addr_list
         client_socket.sendall(message)
-    
+        time.sleep(0.01)
         print("Client list sent.")
 
                 
@@ -128,7 +128,7 @@ class tracker:
         header = "disconnect:"
         message = header.encode(CODE)
         conn.sendall(message)
-
+        time.sleep(0.01)
         print(f"Disconnect requested to client ('{client_ip}', {client_port}).")
 
     def disconnect_from_all_clients(self):
@@ -177,15 +177,17 @@ class tracker:
             print(f"Error updating client_info for {client_ip}:{client_port}: {e}")
             
     def find_peer_have(self, hashcode, client_ip, client_port):
+        self.update_client_info(client_ip, client_port, hashcode)
         try:
             peer_list = []  
 
             # Locking client_info for thread safety
             with self.lock:
                 for client_key, client_hashcode in self.client_info.items():
+                    if client_key[0] != client_ip :
                     #print(f"{client_key} with {client_hashcode}") #! THIS IS ONLY USED FOR DEBUGGING, REMEMBER TO DELETE
-                    if hashcode in client_hashcode:
-                        peer_list.append(client_key) 
+                        if hashcode in client_hashcode:
+                            peer_list.append(client_key) 
 
             print(f"Peers with hashcode '{hashcode}': {peer_list}")
         except Exception as e:
@@ -206,7 +208,7 @@ class tracker:
             header += pickle.dumps(peer_list)
             header += f":{hashcode}".encode("utf-8")
             conn.sendall(header)
-            time.sleep(0.1)
+            time.sleep(0.01)
             print(f"Complete sending peer list to {client_ip} : {client_port}")
         except Exception as e:
             print(f"Failed to send peer list to {client_ip} : {client_port}: {e}")   

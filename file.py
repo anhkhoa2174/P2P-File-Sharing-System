@@ -15,7 +15,8 @@ def sha1_hash(data):
 def split_into_pieces(file_path, piece_length):
     with open(file_path, 'rb') as f:
         while True:
-            piece = f.read(piece_length)
+            piece = f.read(PIECE_LENGTH)
+            print("uuuuuuuuuuuuuuuuuuuuuuuuuuuu")
             if not piece:
                 break
             yield piece
@@ -62,6 +63,7 @@ class MetainfoTorrent:
             self.pieces = None
             self.info_hash = None
             self.numOfPieces = None
+            self.filePath = None
 
     def _extract_value(self,content, key):
 
@@ -88,7 +90,9 @@ class MetainfoTorrent:
     
             # Nối các hash của từng mảnh lại với nhau để tạo ra self.pieces
             self.pieces = ''.join(self.piecesList)
-        
+            
+            self.filePath = torrent_txt_path
+
             # Tạo info hash từ metadata (fileName, length, pieceLength, piecesList)
             info_dict = {
                 "fileName": self.fileName,
@@ -115,10 +119,17 @@ class File:
     def _initialize_piece_states(self):
         self.piece_idx_downloaded = []  
         self.piece_idx_not_downloaded = []
+        print(f"ggggggg{self.filePath}")
         pieces_from_file = list(split_into_pieces(self.filePath, self.meta_info.pieceLength))
+        
+        print(f"meeeeeeeeeeeeeeeeeeeeeeeeeeee{len(pieces_from_file)}")
         for idx, piece in enumerate(pieces_from_file):
+            print("Fengggggggggggggggggggggggggg")
+         
             piece_hash = sha1_hash(piece).hex()
             if piece_hash in self.meta_info_from_torrent.pieces:
+                
+                
                 self.piece_idx_downloaded.append(idx)
             else:
                 self.piece_idx_not_downloaded.append(idx)
@@ -205,3 +216,4 @@ class File:
             print(f"Error splitting file '{file_name}': {e}")
             return None
         
+  
