@@ -6,7 +6,8 @@ from tool import *
 #from piece import *
 
 
-PIECE_LENGTH = 1024 * 512  # 16KB mỗi piece (tùy chỉnh theo nhu cầu)
+PIECE_LENGTH = 1024 * 512
+BLOCK_LENGTH = 1024 * 16
 
 def sha1_hash(data):
     import hashlib

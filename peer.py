@@ -10,6 +10,9 @@ from threading import Thread
 import sys
 import json
 from file import Metainfo
+from file import BLOCK_LENGTH
+from file import PIECE_LENGTH
+import queue
 
 PEER_IP = get_host_default_interface_ip()
 LISTEN_DURATION = 5
@@ -33,6 +36,7 @@ class peer:
         self.peerSocket.bind((self.peerIP, self.portForPeer))
         self.file_info_array = []   # mang chua cac mapping cua bitfield message
 
+
         print(f"A peer with IP address {self.peerIP}, ID {self.portForTracker} has been created")
 
         
@@ -41,6 +45,8 @@ class peer:
         self.connected_tracker_conn_list = []
         self.connected_tracker_addr_list = []
         self.new_conn_thread_list = []
+
+        self.sent_requests_queue = queue.Queue() 
 
     @property # This creates an own respo for peer to save metainfo file
     def peerOwnRes(self):
@@ -121,24 +127,34 @@ class peer:
                     
                     
     
-                    file_obj.split_file(name, file_obj.meta_info.length, 512 * 1024)
+                    self.save_metainfo_to_txt(file_obj.meta_info)
+                    with self.lock:
+                        file_obj.split_file(name, file_obj.meta_info.length, PIECE_LENGTH)
                     
                     if file_obj.meta_info_from_torrent.info_hash == None:
                         # Testing creating metainfo
-                        file_obj.meta_info_from_torrent = file_obj.meta_info
+                        file_obj.meta_info_from_torre#file_obj.meta_info_from_torrent = file_obj.meta_info
+                        file_obj.meta_info_from_torrent.fileName = file_obj.meta_info.fileName
+                        file_obj.meta_info_from_torrent.length = file_obj.meta_info.length
+                        file_obj.meta_info_from_torrent.pieceLength = file_obj.meta_info.pieceLength
+                        file_obj.meta_info_from_torrent.piecesList = file_obj.meta_info.piecesList
+                        file_obj.meta_info_from_torrent.pieces = file_obj.meta_info.pieces
+                        file_obj.meta_info_from_torrent.info_hash = file_obj.meta_info.info_hash
+                        file_obj.meta_info_from_torrent.numOfPieces = file_obj.meta_info.numOfPieces
+                        file_obj.meta_info_from_torrent.filePath = f"{self.peerOwnRes}" + f"{file_obj.meta_info_from_torrent.fileName}"
                         
                         with self.lock:
                             file_obj._initialize_piece_states()
 
                     file_obj.print_file_information()  # For testing
-                    self.save_metainfo_to_txt(file_obj.meta_info)
+
 
         return self.fileInRes
     
     
     def save_metainfo_to_txt(self, metainfo):
         # The path to txt file that saves metainfo of a specific file
-        file_path = os.path.join(self.peerOwnRes, f"{metainfo.fileName}_metainfo.txt")
+        file_path = os.path.join(self.peerOwnRes, f"{metainfo.fileName}")
         
         # Write metainfo into file
         with open(file_path, "w", encoding=CODE) as file:
@@ -251,10 +267,32 @@ class peer:
                     
                     download = self.wait_for_mapping_size(hashcode, peer_list)
                     
+                    self.create_or_update_bfm(hashcode)
+
                     if download:
-                        #self.download()
                         print(f"bat dau download")
-                       
+
+                    threads = []    
+                    for u in downloadFile.piece_idx_not_downloaded:
+                        print(f"cccccccccc{u}")
+                    while downloadFile.piece_idx_not_downloaded != []:
+                        #with self.lock():
+                            print("88888888888888888888888888888")
+                            plan_download = self.rarest_first_with_blocks(downloadFile.bitFieldMessage, downloadFile.meta_info.numOfPieces, PIECE_LENGTH, BLOCK_LENGTH)
+                            print(f"plannnnnnnnnnnnnnnnn:{plan_download}")
+                            for peer_ip, peer_port in peer_list:
+                                for plan in plan_download:
+                                    piece_index = plan["piece"]
+                                    for block_index, peer_ip2 in plan["block_to_peer"].items():
+                                        if peer_ip == peer_ip2:
+                                            if not any(req[0] == hashcode and req[1] == piece_index and req[2] == block_index * BLOCK_LENGTH for req in self.sent_requests_queue):
+                                                thread = threading.Thread(target=self.download_block, args=(peer_ip, peer_port, hashcode, piece_index, block_index * BLOCK_LENGTH ))
+                                                threads.append(thread)
+                                                thread.start()                   
+                            for thread in threads:
+                                thread.join()
+
+                      
     ##TODO TIẾN TRÌNH CHÍNH Ở TRÊN
                         
             except socket.timeout:
@@ -306,9 +344,39 @@ class peer:
                     break
                 
                 elif command == "download":
-                    file_name = data[(data.find(b":") + 1):].decode(CODE)
-                    print(f"Received request download_file '{file_name}' from peer ({peer_ip}:{peer_port})")
-                    self.send_file(peer_socket, file_name)
+                    message = data[(data.find(b":") + 1):].decode(CODE)
+
+
+                    try:
+                        hashcode, pieceindex, offset = message.split(":")
+                        print(f"Received request download from peer ({peer_ip}:{peer_port})")
+                        print(f"Hashcode: {hashcode}")
+                        print(f"Piece Index: {pieceindex}")
+                        print(f"Offset: {offset}")
+
+                        self.send_block(peer_socket, hashcode, int(pieceindex), int(offset))
+                    except ValueError as e:
+                        print(f"Malformed message from peer: {e}")
+
+                elif command == "block":
+                    message = data[(data.find(b":") + 1):]
+                    header, received_data = message.split(b"\n", 1)
+                    header = header.decode(CODE)   
+
+                    hashcode, pieceindex, offset, datalength = header.split(":")
+                    pieceindex = int(pieceindex)
+                    offset = int(offset)
+                    datalength = int(datalength)      
+
+                    print(f"Received block from peer ({peer_ip}:{peer_port}):")
+                    print(f"  Hashcode: {hashcode}")
+                    print(f"  Piece Index: {pieceindex}")
+                    print(f"  Offset: {offset}")
+                    print(f"  Data Length: {datalength}")
+                    
+                    self.receive_block(hashcode, pieceindex, offset, datalength, received_data)
+                    with self.lock:
+                        self.create_or_update_bfm(hashcode)
                     
                 elif command == "info":
                     info_hash = data[(data.find(b":") + 1):].decode(CODE)
