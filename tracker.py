@@ -41,9 +41,9 @@ class tracker:
 
         header = "update_client_list:"
         pickle_client_addr_list = pickle.dumps(self.client_addr_list)
-        message = header.encode("utf-8") + pickle_client_addr_list
+        message = header.encode(CODE) + pickle_client_addr_list
         client_socket.sendall(message)
-    
+        time.sleep(0.01)
         print("Client list sent.")
 
                 
@@ -58,11 +58,11 @@ class tracker:
                 if not data:
                     break
 
-                command = data[:(data.find(b":"))].decode("utf-8")
+                command = data[:(data.find(b":"))].decode(CODE)
                 if command == "update_client_list":
                     self.update_client_list(client_socket)
                 elif command == "disconnect":
-                    self.remove_client_info(client_ip, client_port) #! WORKING ON THIS
+                    self.remove_client_info(client_ip,client_port)
                     break
                 elif command == "send_metainfo": #! WORKING ON THIS
                     metainfo_data = pickle.loads(data[len("send_metainfo:"):])
@@ -98,7 +98,7 @@ class tracker:
 
                 # Receive client port separately
                 string_client_port = client_socket.recv(1024)
-                client_port = int(string_client_port.decode("utf-8"))
+                client_port = int(string_client_port.decode(CODE))
 
                 # Create thread
                 thread_client = Thread(target=self.new_conn_client, args=(client_socket, client_ip, client_port))
@@ -126,9 +126,9 @@ class tracker:
             return
 
         header = "disconnect:"
-        message = header.encode("utf-8")
+        message = header.encode(CODE)
         conn.sendall(message)
-
+        time.sleep(0.01)
         print(f"Disconnect requested to client ('{client_ip}', {client_port}).")
 
     def disconnect_from_all_clients(self):
@@ -150,15 +150,16 @@ class tracker:
             print(f"Received Metainfo: {metainfo_dict}")
 
             file_name = metainfo_dict.get('file_name')
-            pieces = metainfo_dict.get('pieces') 
+            info_hash = metainfo_dict.get('info_hash') 
 
-            if not file_name or not pieces:
+            if not file_name or not info_hash:
                 print("Invalid metainfo received, missing 'file_name' or 'pieces'.")
                 return
             
-            self.update_client_info(client_ip, client_port, pieces)
+            self.update_client_info(client_ip, client_port, info_hash)
         except Exception as e:
             print(f"Error receiving metainfo from {client_ip}:{client_port}: {e}")
+        
             
     def update_client_info(self, client_ip, client_port, hashcode):  
         try:
@@ -174,26 +175,27 @@ class tracker:
             print(f"Updated client_info: {client_key} now has hashcode '{hashcode}'.")
         except Exception as e:
             print(f"Error updating client_info for {client_ip}:{client_port}: {e}")
-
+            
     def find_peer_have(self, hashcode, client_ip, client_port):
+        self.update_client_info(client_ip, client_port, hashcode)
         try:
             peer_list = []  
 
             # Locking client_info for thread safety
             with self.lock:
                 for client_key, client_hashcode in self.client_info.items():
+                    if client_key[0] != client_ip :
                     #print(f"{client_key} with {client_hashcode}") #! THIS IS ONLY USED FOR DEBUGGING, REMEMBER TO DELETE
-                    if hashcode in client_hashcode:
-                        peer_list.append(client_key) 
+                        if hashcode in client_hashcode:
+                            peer_list.append(client_key) 
 
             print(f"Peers with hashcode '{hashcode}': {peer_list}")
         except Exception as e:
             print(f"Error finding peers with hashcode '{hashcode}': {e}")
 
-        self.send_peer_have(peer_list, client_ip, client_port)
-
-    
-    def send_peer_have(self, peer_list, client_ip, client_port): #! WORKING ON THIS
+        self.send_peer_have(peer_list, client_ip, client_port, hashcode)
+           
+    def send_peer_have(self, peer_list, client_ip, client_port, hashcode): #! WORKING ON THIS
         if (client_ip, client_port) in self.client_addr_list:
             index = self.client_addr_list.index((client_ip, client_port))
             conn = self.client_conn_list[index]
@@ -204,12 +206,13 @@ class tracker:
         try :
             header = "peer_list:".encode("utf-8")
             header += pickle.dumps(peer_list)
+            header += f":{hashcode}".encode("utf-8")
             conn.sendall(header)
-            time.sleep(0.1)
+            time.sleep(0.01)
             print(f"Complete sending peer list to {client_ip} : {client_port}")
         except Exception as e:
-            print(f"Failed to send peer list to {client_ip} : {client_port}: {e}")
-
+            print(f"Failed to send peer list to {client_ip} : {client_port}: {e}")   
+            
     def remove_client_info(self, client_ip, client_port): #! WORKING ON THIS 
         try:
             # Locking client_info for thread safety
@@ -223,6 +226,13 @@ class tracker:
                     print(f"Client {client_key} not found in client_info.")
         except Exception as e:
             print(f"Error removing client_info for {client_ip}:{client_port}: {e}")
+                     
+    def print_client_info(self):
+        print(f"{self.client_info}")
+        
+        
+
+
 
 
 if __name__ == "__main__":
