@@ -74,6 +74,7 @@ class MetainfoTorrent:
         raise ValueError(f"Key '{key}' not found in the content.")
 
     def _parse_torrent_file(self, torrent_txt_path):
+        print("haaaaaaaaaaaaaaaaaaaaaaa")
         with open(torrent_txt_path, 'r') as f:
             content = f.read()
         
@@ -114,7 +115,7 @@ class File:
         self.sentMetaInfo = False #! WORKING ON THIS
         self.bitFieldMessage = []
         self.filePath = path
-        self.piece_List = [] 
+        #self.piece_List = [] 
         
         
     def _initialize_piece_states(self):
@@ -191,19 +192,19 @@ class File:
                     piece_path = os.path.join(output_folder, f"piece{i}")
                                  
                     if(file_size <= piece_size):
-                        self.piece_List.append(piece(file_size, self.meta_info.pieces, self.filePath, piece_path))
+                        #self.piece_List.append(piece(file_size, self.meta_info.pieces, self.filePath, piece_path))
                         piece_data = f.read(file_size)
                         with open(piece_path, "wb") as piece_file:
                             piece_file.write(piece_data)
                     else:     
                         if i < num_pieces-1:
-                            self.piece_List.append(piece(piece_size, self.meta_info.piecesList[i], self.filePath, piece_path))
+                            #self.piece_List.append(piece(piece_size, self.meta_info.piecesList[i], self.filePath, piece_path))
                             piece_data = f.read(piece_size)
                             with open(piece_path, "wb") as piece_file:
                                 piece_file.write(piece_data)
                         
                         else:
-                            self.piece_List.append(piece(file_size - piece_size * num_pieces, self.meta_info.piecesList[i], self.filePath, piece_path))
+                            #self.piece_List.append(piece(file_size - piece_size * num_pieces, self.meta_info.piecesList[i], self.filePath, piece_path))
                             piece_data = f.read(file_size - piece_size * (num_pieces-1))
                             with open(piece_path, "wb") as piece_file:
                                 piece_file.write(piece_data)
