@@ -491,8 +491,6 @@ class peer:
         #print(f"fileName:{downloadFile.meta_info_from_torrent.fileName}")
         
         
-        
-        
     def download_file(self, peer_ip, peer_port, hashcode, pieceindex, offset):
             try:
                 if (peer_ip, peer_port) in self.connected_client_addr_list:
