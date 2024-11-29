@@ -14,6 +14,7 @@ from file import BLOCK_LENGTH
 from file import PIECE_LENGTH
 import queue
 
+
 PEER_IP = get_host_default_interface_ip()
 LISTEN_DURATION = 5
 PORT_FOR_PEER= random.randint(12600, 22000)
@@ -133,7 +134,7 @@ class peer:
                     
                     if file_obj.meta_info_from_torrent.info_hash == None:
                         # Testing creating metainfo
-                        file_obj.meta_info_from_torre#file_obj.meta_info_from_torrent = file_obj.meta_info
+                        #file_obj.meta_info_from_torrent = file_obj.meta_info
                         file_obj.meta_info_from_torrent.fileName = file_obj.meta_info.fileName
                         file_obj.meta_info_from_torrent.length = file_obj.meta_info.length
                         file_obj.meta_info_from_torrent.pieceLength = file_obj.meta_info.pieceLength
@@ -511,80 +512,51 @@ class peer:
                 elif  os.path.exists(b):
                     file.__init__(file_path, b) 
                 else:
-
                     print("]]]]]]]]]]]]]]]]]]]]]]]]]]]")
 
                     
-
-                    
-
                 file._initialize_piece_states()
-
                 print("bhjdfbgvjhsdbjhkgvfrbdsjhtgvb") 
-
         except Exception as e:
-
                 print(f"Error create_or_update_bfm: {e}")  
+
     def send_bfm(self, conn, infohash):   
-        try:         
-            root_folder = os.getcwd()
-            file_share_folder = os.path.join(root_folder, "FileShare")
-       
-            for file in self.fileInRes:
-                if file.meta_info_from_torrent.info_hash == infohash:
-                    file_name = file.meta_info_from_torrent.fileName
-                    
-                    self.merge_file_with_padding(file_name, file.meta_info_from_torrent.length)
-                    
-                    file_folder = os.path.join(file_share_folder, os.path.splitext(file_name)[0])
-                    
-                    if not os.path.exists(file_folder):
-                        os.makedirs(file_folder)  
-                        
-                    file_path = os.path.join(file_folder,file_name)
-                    
-                    if not os.path.exists(file_path) :
-                        print('Chua merge file ma doi lam, lam ccccccccccccccccc')
-                    with self.lock:
-                        print(f"tttttttttttttttttttttttt{file_path}")
-                        #file.meta_info = Metainfo(file_path)
-                        
-                        a = file.meta_info_from_torrent.filePath
-                        file.__init__(file_path, a) 
-                        
-                        file._initialize_piece_states()
-                        
-                       
-                        bfm = f"bfm:{infohash}:{file.bitFieldMessage}"
-                        conn.sendall(bfm.encode(CODE))
-                        time.sleep(0.01)
+        try:               
+            file = self.find_file_obj(infohash)
+            bfm = f"bfm:{infohash}:{file.bitFieldMessage}"
+            conn.sendall(bfm.encode(CODE))
+            time.sleep(0.01)
         except Exception as e:
                 print(f"Error send_bfm: {e}")  
                 
                 
     def merge_file_with_padding(self, file_name, total_size):
-       
-        root_folder = os.getcwd()
-        file_share_folder = os.path.join(root_folder, "FileShare")
-        
+        print("yyyyyyyyyyyyyyyyyyyyyyyyyyyyy")
+        file_share_folder = self.get_file_share_folder()
+
         if not os.path.exists(file_share_folder):
-            print(f"'Fileshare' folder does not exist in the project root: {root_folder}")
+            print("Fileshare' folder does not exist")
             return None
 
         folder = os.path.join(file_share_folder, os.path.splitext(file_name)[0])
         if not os.path.exists(folder) or not os.path.isdir(folder):
+            print(f"hhhhhhhhhhhhhhhhhhhhhhhhhhhhh{folder}")
             print(f"Folder '{file_name}' not found in 'Fileshare'.")
             return None
         
         # Tạo đường dẫn cho file hợp nhất
         merged_file_path = os.path.join(folder, file_name)
-        
+        print("qqqqqqqqqqqqqqqqqqqqqqqqqqqqq")
         try:
-            with open(merged_file_path, 'wb') as merged_file:
-                merged_file.truncate(total_size)  # Tạo file với kích thước `total_size`
-            
+            if not os.path.exists(merged_file_path):
+                with open(merged_file_path, 'wb') as merged_file:
+                    merged_file.truncate(total_size)  # Tạo file với kích thước `total_size`
+            else:
+                print(f"File '{file_name}' already exists. Merging directly.")
+
             # Ghi dữ liệu từng piece vào đúng vị trí
             num_pieces = (total_size + PIECE_LENGTH - 1) // PIECE_LENGTH
+            print(f"eeeeeeeeeeeeeeeeeeeeeeeeeee{num_pieces}")
             for piece_index in range(0, num_pieces ): 
                 piece_name = f"piece{piece_index}"
                 piece_path = os.path.join(folder, piece_name)
@@ -608,7 +580,7 @@ class peer:
         #print(f"fileName:{downloadFile.meta_info_from_torrent.fileName}")
         
         
-    def download_file(self, peer_ip, peer_port, hashcode, pieceindex, offset):
+    def download_block(self, peer_ip, peer_port, hashcode, pieceindex, offset):
             try:
                 if (peer_ip, peer_port) in self.connected_client_addr_list:
                     index = self.connected_client_addr_list.index((peer_ip, peer_port))
@@ -623,84 +595,86 @@ class peer:
                 peer_socket.sendall(request_message.encode(CODE))
                 time.sleep(0.01)
 
+                self.sent_requests_queue.put({
+                    "hashcode": hashcode,
+                    "pieceindex": pieceindex,
+                    "offset": offset
+                })
+
+    
+            except socket.timeout:
+                print(f"Request to {peer_ip}:{peer_port} timed out.")
             except Exception as e:
                 print(f"Error requesting piece: {e}")  
                 
-    # Download a file from all peers
-    def download_file_from_all_peers(self, file_name):
-        try:
-            threads = []
-            
-            for peer_ip, peer_port in self.connected_client_addr_list:
-                thread = Thread(target=self.download_file, args=(peer_ip, peer_port, file_name))
-                threads.append(thread)
-                thread.start()
+    
+    
+    def find_file_obj(self, hashcode):
+        for file in self.fileInRes:
+            if file.meta_info_from_torrent.info_hash == hashcode:
+                return file 
 
-            for thread in threads:
-                thread.join()
-            
-            print(f"Finished downloading '{file_name}' from all peers.")
+        raise Exception(f"File with hashcode '{hashcode}' not found in the resource list.")
+
         
-        except Exception as e:
-            print(f"Error download from all peers: {e}")  
 
-    def send_file(self, conn, file_name):
-        
-        #if(filename == filename1):print("fffffffffff")
+      
+    def send_block(self, conn, hash_code, pieceindex, offset):
+
         try:
-            with open(file_name, "rb") as f:
-                file_data = f.read()
+            file = self.find_file_obj(hash_code)
+            if not file:
+                print(f"File for hash_code {hash_code} not found.")
+                return
 
-            file_size = len(file_data)
+            File_name = file.meta_info.fileName
+            Folder_path = os.path.join(self.get_file_share_folder(), os.path.splitext(File_name)[0])
+            Piece_path = os.path.join(Folder_path, f"piece{pieceindex}")
             
-            header = f"receive_file:{file_name}:{file_size}"
+            with open(Piece_path, "rb") as f:
+                f.seek(offset)
+                data_to_send  = f.read(BLOCK_LENGTH)
+                data_length = len(data_to_send)
 
-            data_to_send = header.encode(CODE) + b"\n" + file_data
+            
+            header = f"block:{hash_code}:{pieceindex}:{offset}:{data_length}"     
+            message = header.encode(CODE) + b"\n" + data_to_send
 
-            conn.sendall(data_to_send)
+            conn.sendall(message)
             time.sleep(0.01)
-            print(f"File {file_name} has been sent to the client.")
+            print(f"Sent piece {pieceindex} (offset: {offset}, length: {data_length}) to client.")
 
         except FileNotFoundError:
-            print(f"File {file_name} not found.")
-            error_message = f"not_receive_file:File '{file_name}' not found."
-            conn.sendall(error_message.encode(CODE)) 
-            time.sleep(0.01)
+            print(f"piece for hash_code {hash_code} and pieceindex {pieceindex} not found.")
+            error_message = f"not_receive_piece:piece for hash_code '{hash_code}' and pieceindex '{pieceindex}' not found."
+            conn.sendall(error_message.encode(CODE))
         except Exception as e:
-            print(f"Error sending file {file_name}: {e}")
-            
-        
-    def receive_file(self, peer_socket, data_receive):
+            print(f"Error sending piece {pieceindex} (offset: {offset}) for hash_code {hash_code}: {e}")
+
+                   
+    def receive_block (self, hashcode, PieceIndex, Offset, Length, Data):
         try:
-            header, file_data = data_receive.split(b"\n", 1)
-            parts = header.split(b':')
+            File_Share_Folder = self.get_file_share_folder()
+            file = self.find_file_obj(hashcode)
+            File_name = file.meta_info.fileName
+            Folder_path = os.path.join(File_Share_Folder, os.path.splitext(File_name)[0])
+            piece_path = os.path.join(Folder_path, f"piece{PieceIndex}")
 
-            if len(parts) == 2:
-                file_name = parts[0].decode(CODE)
-                file_size = int(parts[1].decode(CODE))
-            else:
-                print("Invalid data format.")
+            if len(Data) != Length:
+                raise ValueError(f"Data length mismatch: expected {Length}, got {len(Data)}")
 
-            if file_size <= 0:
-                print(f"Cannot receiving invalid file")
-                return
-            
-            print(f"File size to receive: {file_size} bytes")
+            with open(piece_path, "r+b") as file:
+                file.seek(Offset)  
+                file.write(Data)  
 
-            print(f"Receiving file: {file_name}")
-            
-            with open(file_name, "wb") as file:
+            print(f"\npiece '{PieceIndex}' received successfully.")
 
-                file.write(file_data)
-                received_size = len(file_data)
-                if received_size != file_size:
-                    print(f"\nFile '{file_name}' cannot receive enough.")
-                    return
-
-            print(f"\nFile '{file_name}' received successfully.")
-
+        except FileNotFoundError as e:
+            print(f"Error: {e}")
+        except ValueError as e:
+            print(f"Data error: {e}")
         except Exception as e:
-            print(f"Error receiving file: {e}")     
+            print(f"Error in receive_block: {e}")  
             
     def client_program(self):
         print(f"Peer IP: {self.peerIP} | Peer Port: {self.portForPeer}")
@@ -837,20 +811,11 @@ class peer:
     
         
     #Merge a file received
-    def merge_file(self, file_name):
+    def merge_piece(self, file_name):
         import os
 
-        root_folder = os.getcwd()  # Thư mục gốc của project
-        file_have_folder = os.path.join(root_folder, "peer_respo")
-        file_share_folder = os.path.join(root_folder, "FileShare")
-        
-        # Đảm bảo các folder peer_respo và Fileshare tồn tại
-        if not os.path.exists(file_have_folder):
-            print(f"'peer_respo' folder does not exist in the project root: {root_folder}")
-            return None
-        if not os.path.exists(file_share_folder):
-            print(f"'Fileshare' folder does not exist in the project root: {root_folder}")
-            return None
+        file_have_folder = self.get_peer_respo_folder()
+        file_share_folder = self.get_file_share_folder()
 
         # Kiểm tra xem folder tên file có tồn tại trong Fileshare không
         folder_with_pieces = os.path.join(file_share_folder, os.path.splitext(file_name)[0])
@@ -882,6 +847,69 @@ class peer:
             return None
 
 
+    def get_peer_respo_folder(self):
+        """Lấy đường dẫn đến thư mục peer_respo."""
+        root_folder = os.getcwd() 
+        file_have_folder = os.path.join(root_folder, "peer_respo")
+
+        if not os.path.exists(file_have_folder):
+            print(f"'peer_respo' folder does not exist in the project root: {root_folder}")
+            return None
+        return file_have_folder
+
+    def get_file_share_folder(self):
+        """Lấy đường dẫn đến thư mục FileShare."""
+        root_folder = os.getcwd() 
+        file_share_folder = os.path.join(root_folder, "FileShare")
+        if not os.path.exists(file_share_folder):
+            print(f"'Fileshare' folder does not exist in the project root: {root_folder}")
+            return None
+        return file_share_folder
+
+
+    def rarest_first_with_blocks(self, my_bitfield, num_pieces, piece_size, block_size):
+        print("cmcmcmcmcmmcmcmcmcmcmcmcmcmcm")
+        # Tạo bảng đếm số lần xuất hiện của từng piece
+        piece_count = [0] * num_pieces
+        piece_to_peer_map = {i: [] for i in range(num_pieces)}
+
+        for file_info in self.file_info_array:
+            for peer_ip, bitfield in file_info["mapping"].items():
+                for i, bit in enumerate(bitfield):
+                    if bit == '1':
+                        piece_count[i] += 1
+                        piece_to_peer_map[i].append(peer_ip)
+
+        # Lọc các pieces mà client A chưa có
+        missing_pieces = [i for i, bit in enumerate(my_bitfield) if bit == '0']
+
+        # Sắp xếp các pieces theo độ hiếm (rarest first)
+        rarest_pieces = sorted(missing_pieces, key=lambda x: piece_count[x])
+
+        # Gán blocks cho các peers
+        download_plan = []
+        for piece in rarest_pieces:
+            peers_with_piece = piece_to_peer_map[piece]
+            if not peers_with_piece:
+                continue  # Không có peer nào có piece này, bỏ qua
+
+            num_blocks = piece_size // block_size
+            block_to_peer = {}
+
+            for block_index in range(num_blocks):
+                # Chọn peer theo round-robin
+                peer = peers_with_piece[block_index % len(peers_with_piece)]
+                block_to_peer[block_index] = peer
+
+            download_plan.append({
+                "piece": piece,
+                "block_to_peer": block_to_peer
+            })
+
+        return download_plan
+
+    
+
 if __name__ == "__main__":
     my_peer = peer()
     try:
@@ -892,27 +920,19 @@ if __name__ == "__main__":
             command = input("Peer> ")
             if command == "test":
                 print("The program is running normally.")
-            elif command.startswith("merge_file"):
-                parts = command.split()
-                if len(parts) == 2:
-                    file_name = parts[1]
-                    try:
-                        my_peer.merge_file(file_name)
-                    except ValueError:
-                        print("Invalid port.")
-                else:
-                    print("Usage: merge_file <file_name>")
-            elif command.startswith("connect_to_tracker"):
-                parts = command.split()
-                if len(parts) == 3:
-                    server_host = parts[1]
-                    try:
-                        server_port = int(parts[2])
-                        my_peer.connect_to_tracker(server_host, server_port)
-                    except ValueError:
-                        print("Invalid port.")
-                else:
-                    print("Usage: connect_tracker <IP> <Port>")
+            elif command.startswith("tr"):
+                server_host = "192.168.1.18" 
+                server_port = 22236 
+                # parts = command.split()
+                # if len(parts) == 3:
+                #     server_host = parts[1]
+                #     try:
+                #         server_port = int(parts[2])
+                my_peer.connect_to_tracker(server_host, server_port)
+                    # except ValueError:
+                    #     print("Invalid port.")
+                # else:
+                #     print("Usage: connect_tracker <IP> <Port>")
             elif command.startswith("disconnect_from_tracker"):
                 parts = command.split()
                 if len(parts) == 3:
@@ -956,35 +976,11 @@ if __name__ == "__main__":
                     print("Usage: disconnect_from_peer <IP> <Port>")
             elif command == "disconnect_from_all_peers":
                 my_peer.disconnect_from_all_peers()  
-            elif command.startswith("download"):
-                parts = command.split()
-                if len(parts) == 4:
-                    peer_ip = parts[1]
-                    try:
-                        peer_port = int(parts[2])
-                        file_name = parts[3]
-                        my_peer.download_file(peer_ip, peer_port, file_name)
-                    except ValueError:
-                        print("Invalid port.")
-                    except Exception as e:
-                        print(f"Error downloading file: {e}")
-                else:
-                    print("Usage: download <IP> <Port> <file_name>")   
-            elif command.startswith("from_all_peers_download"):
-                parts = command.split()
-                if len(parts) == 2:
-                    file_name = parts[1]
-                    try:
-                        my_peer.download_file_from_all_peers(file_name)
-                    except Exception as e:
-                        print(f"Error downloading file from all peers: {e}")
-                else:
-                    print("Usage: from_all_peers_download <file_name>")  
-            elif command == "get_metainfo":
+            elif command == "get":
                 my_peer.getFileInRes()
-            elif command == "send_metainfo": #! WORKING ON THIS
+            elif command == "send": #! WORKING ON THIS
                 my_peer.send_metainfo_to_tracker(server_host, server_port)
-            elif command == "find_peer_have": #! WORKING ON THIS
+            elif command == "have": #! WORKING ON THIS
                 torrent_path = input("Enter torrent path: ")
                 downloadfile = File("",torrent_path)
                 
