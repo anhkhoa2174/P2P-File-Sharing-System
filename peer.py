@@ -373,7 +373,7 @@ class peer:
                     print(f"  Piece Index: {pieceindex}")
                     print(f"  Offset: {offset}")
                     print(f"  Data Length: {datalength}")
-                    
+
                     self.receive_block(hashcode, pieceindex, offset, datalength, received_data)
                     with self.lock:
                         self.create_or_update_bfm(hashcode)
@@ -476,6 +476,55 @@ class peer:
         except Exception as e:
             print(f"Error sending infohash: {e}")  
             
+
+
+
+    def create_or_update_bfm(self, infohash):
+        try:
+            print("gggggggggggggggggggg")
+            file_share_folder = self.get_file_share_folder()
+   
+            file = self.find_file_obj(infohash)
+            file_name = file.meta_info_from_torrent.fileName
+
+            file_folder = os.path.join(file_share_folder, os.path.splitext(file_name)[0])
+            if not os.path.exists(file_folder):
+                os.makedirs(file_folder)  
+            print(f"pppppppppppppppppppppppp{file_folder}")
+            #with self.lock:    
+            print(f"ddddddddddddddddddddddddddddd")
+            self.merge_file_with_padding(file_name, file.meta_info_from_torrent.length)
+          
+            file_path = os.path.join(file_folder,file_name)
+            print(f"vvvvvvvvvvvvvvvvvvvvvvvvvvvvv{file_folder}")        
+            if not os.path.exists(file_path) :
+                print('Chua merge file ma doi lam, lam ccccccccccccccccc')
+            with self.lock:
+                print(f"tttttttttttttttttttttttt{file_path}")
+
+                a = file.meta_info_from_torrent.filePath
+                b = f"{self.peerOwnRes}" + f"{file.meta_info_from_torrent.fileName}"
+
+                print(f"rrrrrrrrrrrrrrrrrrrrrr4")
+                if os.path.exists(a):
+                    file.__init__(file_path, a) 
+                elif  os.path.exists(b):
+                    file.__init__(file_path, b) 
+                else:
+
+                    print("]]]]]]]]]]]]]]]]]]]]]]]]]]]")
+
+                    
+
+                    
+
+                file._initialize_piece_states()
+
+                print("bhjdfbgvjhsdbjhkgvfrbdsjhtgvb") 
+
+        except Exception as e:
+
+                print(f"Error create_or_update_bfm: {e}")  
     def send_bfm(self, conn, infohash):   
         try:         
             root_folder = os.getcwd()
