@@ -131,10 +131,10 @@ class peer:
                             file_obj._initialize_piece_states()
 
                     file_obj.print_file_information()  # For testing
-
                     self.save_metainfo_to_txt(file_obj.meta_info)
 
         return self.fileInRes
+    
     
     def save_metainfo_to_txt(self, metainfo):
         # The path to txt file that saves metainfo of a specific file

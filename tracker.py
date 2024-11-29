@@ -118,7 +118,7 @@ class tracker:
         print("Tracker server stopped.")
 
     def disconnect_from_client(self, client_ip, client_port):
-        if (client_ip, client_port) in client_addr_list:
+        if (client_ip, client_port) in self.client_addr_list:
             index = self.client_addr_list.index((client_ip, client_port))
             conn = self.client_conn_list[index]
         else:
