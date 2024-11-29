@@ -3,7 +3,7 @@ import math
 import tool
 import os
 from tool import *
-from piece import *
+#from piece import *
 
 
 PIECE_LENGTH = 1024 * 512  # 16KB mỗi piece (tùy chỉnh theo nhu cầu)
@@ -31,7 +31,7 @@ class Metainfo:
             pieces = split_into_pieces(path, self.pieceLength)
             self.piecesList = [sha1_hash(piece).hex() for piece in pieces] #piece list chứa hashcode của từng piece
             self.pieces = ''.join(self.piecesList)
-
+            self.filePath = path
             self.numOfPieces = math.ceil(self.length / self.pieceLength)
 
             # Tạo info_hash từ metadata
@@ -50,6 +50,7 @@ class Metainfo:
             self.pieces = None
             self.info_hash = None
             self.numOfPieces = None
+            self.filePath = None
 
 class MetainfoTorrent:
     def __init__(self, torrent_txt_path):
