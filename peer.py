@@ -867,13 +867,16 @@ class peer:
         return file_share_folder
 
 
-    def rarest_first_with_blocks(self, my_bitfield, num_pieces, piece_size, block_size):
-        print("cmcmcmcmcmmcmcmcmcmcmcmcmcmcm")
+    def rarest_first_with_blocks(self, my_bitfield, num_pieces, piece_size, block_size, total_file_size, hashcode):
         # Tạo bảng đếm số lần xuất hiện của từng piece
         piece_count = [0] * num_pieces
         piece_to_peer_map = {i: [] for i in range(num_pieces)}
 
-        for file_info in self.file_info_array:
+        # Lọc chỉ các file_info có hashcode tương ứng
+        relevant_file_info = [file_info for file_info in self.file_info_array if file_info["infohash"] == hashcode]
+
+        # Tính toán thông tin từ relevant_file_info
+        for file_info in relevant_file_info:
             for peer_ip, bitfield in file_info["mapping"].items():
                 for i, bit in enumerate(bitfield):
                     if bit == '1':
@@ -893,16 +896,26 @@ class peer:
             if not peers_with_piece:
                 continue  # Không có peer nào có piece này, bỏ qua
 
-            num_blocks = piece_size // block_size
-            block_to_peer = {}
+            # Tính toán kích thước thực tế của piece (xử lý piece cuối cùng)
+            piece_start = piece * piece_size
+            if piece_start + piece_size > total_file_size:
+                actual_piece_size = total_file_size - piece_start
+            else:
+                actual_piece_size = piece_size
 
+            # Tính số blocks của piece hiện tại
+            num_blocks = (actual_piece_size + block_size - 1) // block_size
+
+            block_to_peer = {}
             for block_index in range(num_blocks):
                 # Chọn peer theo round-robin
                 peer = peers_with_piece[block_index % len(peers_with_piece)]
                 block_to_peer[block_index] = peer
 
+            # Thêm piece vào kế hoạch tải
             download_plan.append({
                 "piece": piece,
+                "actual_piece_size": actual_piece_size,  # Kích thước thật của piece
                 "block_to_peer": block_to_peer
             })
 
