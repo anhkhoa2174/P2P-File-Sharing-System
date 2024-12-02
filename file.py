@@ -6,6 +6,8 @@ from tool import *
 #from piece import *
 
 
+PIECE_LENGTH = 1024 * 512  # 16KB mỗi piece (tùy chỉnh theo nhu cầu)
+BLOCK_LENGTH = 1024 * 8
 
 def sha1_hash(data):
     import hashlib
@@ -115,6 +117,7 @@ class File:
         self.bitFieldMessage = []
         self.filePath = path
         #self.piece_List = [] 
+        self.flag = []
         
         
     def _initialize_piece_states(self):
@@ -126,17 +129,34 @@ class File:
         print(f"meeeeeeeeeeeeeeeeeeeeeeeeeeee{len(pieces_from_file)}")
         for idx, piece in enumerate(pieces_from_file):
             print("Fengggggggggggggggggggggggggg")
-         
+            print("aaaaaaaaaaaaaaaabbbbbbbbbbbbb")
             piece_hash = sha1_hash(piece).hex()
             if piece_hash in self.meta_info_from_torrent.pieces:
-                
+                print(f"{idx}aaaaaaaaaaaaaa")
                 
                 self.piece_idx_downloaded.append(idx)
             else:
+                print(f"{idx}bbbbbbbbbbbbbbbbbb")
                 self.piece_idx_not_downloaded.append(idx)
 
         self._create_bit_field_message()
+        
+    def update_flag(self, ip):
+        print("triettriettriet")
+    # Tìm kiếm trong danh sách flag
+        found = False
+        for flag in self.flag:
+            
+            if flag[0] == ip:
+                print("pineappplypineapply")
+                flag[1] = not flag[1]
+                print(f"todungkhang{flag[1]}")
+                found = True
+                return
 
+        if not found:
+            self.flag.append([ip, False])  # Thêm phần tử mới nếu không tìm thấy IP trong danh sách
+            
     def _create_bit_field_message(self):
         self.bitFieldMessage = []
         bit_field = ['1' if idx in self.piece_idx_downloaded else '0' for idx in range(self.meta_info.numOfPieces)]
@@ -217,4 +237,3 @@ class File:
             print(f"Error splitting file '{file_name}': {e}")
             return None
         
-  
