@@ -363,6 +363,9 @@ class peer:
         self.connected_tracker_addr_list.remove((server_host, server_port))
         print(f"Tracker ('{server_host}', {server_port}) disconnected.")
 
+
+
+
     def connect_to_tracker(self, server_host, server_port):
         try:
             tracker_socket = socket.socket()
@@ -392,7 +395,7 @@ class peer:
         peer_socket.settimeout(5)
         while not stop_event.is_set():
             try:
-                data = peer_socket.recv(4096)
+                data = peer_socket.recv(BLOCK_LENGTH *2, socket.MSG_WAITALL)
                 if not data:
                     break
 
@@ -405,7 +408,7 @@ class peer:
 
 
                     try:
-                        hashcode, pieceindex, offset = message.split(":")
+                        hashcode, pieceindex, offset = message.split(":",2)
                         print(f"Received request download from peer ({peer_ip}:{peer_port})")
                         print(f"Hashcode: {hashcode}")
                         print(f"Piece Index: {pieceindex}")
@@ -416,30 +419,39 @@ class peer:
                         print(f"Malformed message from peer: {e}")
 
                 elif command == "block":
+                    print(f"allsize{len(data)}")
                     message = data[(data.find(b":") + 1):]
                     header, received_data = message.split(b"\n", 1)
+                    print(f"sizeheader{len(header)}")
                     header = header.decode(CODE)   
 
                     hashcode, pieceindex, offset, datalength = header.split(":")
                     pieceindex = int(pieceindex)
                     offset = int(offset)
-                    datalength = int(datalength)      
+                    #datalength = int(datalength)      
 
                     print(f"Received block from peer ({peer_ip}:{peer_port}):")
                     print(f"  Hashcode: {hashcode}")
                     print(f"  Piece Index: {pieceindex}")
                     print(f"  Offset: {offset}")
                     print(f"  Data Length: {datalength}")
+                    print(f"jjjjjjjjjjjjjjjjj666666666666{len(received_data)}")
 
                     self.receive_block(hashcode, pieceindex, offset, datalength, received_data)
                     with self.lock:
                         self.create_or_update_bfm(hashcode)
                     
+                        file = self.find_file_obj(hashcode)
+                        print
+                    with self.lock:    
+                        file.update_flag(peer_ip)
+
+
                 elif command == "info":
                     info_hash = data[(data.find(b":") + 1):].decode(CODE)
                     print(f"Received info_hash '{info_hash}' from peer ({peer_ip}:{peer_port})")
                     self.send_bfm(peer_socket, info_hash)
-                    
+                    self.create_or_update_bfm(info_hash)
                 elif command == "bfm":
                     try:
                         bfm = data[(data.find(b":") + 1):].decode(CODE)
@@ -503,7 +515,7 @@ class peer:
         # Send peer port separately
         string_peer_port = str(self.portForPeer)
         peer_socket.sendall(string_peer_port.encode(CODE))
-        time.sleep(0.01)
+        time.sleep(0.1)
         
         # Create thread
         thread_peer = Thread(target=self.new_conn_peer, args=(peer_socket, peer_ip, peer_port))
@@ -527,7 +539,7 @@ class peer:
             request_message = f"info:{str(infohash)}"
             
             peer_socket.sendall(str(request_message).encode(CODE))
-            time.sleep(0.01)
+            time.sleep(0.1)
             
             print(f"Sent successful infohash to {peer_ip}:{peer_port}") 
         except Exception as e:
@@ -556,23 +568,29 @@ class peer:
             print(f"vvvvvvvvvvvvvvvvvvvvvvvvvvvvv{file_folder}")        
             if not os.path.exists(file_path) :
                 print('Chua merge file ma doi lam, lam ccccccccccccccccc')
-            with self.lock:
-                print(f"tttttttttttttttttttttttt{file_path}")
+            #with self.lock:
+            print(f"tttttttttttttttttttttttt{file_path}")
 
-                a = file.meta_info_from_torrent.filePath
-                b = f"{self.peerOwnRes}" + f"{file.meta_info_from_torrent.fileName}"
+            a = file.meta_info_from_torrent.filePath
+            b = f"{self.peerOwnRes}"+f"{file.meta_info_from_torrent.fileName}"
 
-                print(f"rrrrrrrrrrrrrrrrrrrrrr4")
-                if os.path.exists(a):
-                    file.__init__(file_path, a) 
-                elif  os.path.exists(b):
-                    file.__init__(file_path, b) 
-                else:
-                    print("]]]]]]]]]]]]]]]]]]]]]]]]]]]")
+            print(f"rrrrrrrrrrrrrrrrrrrrrr4")
+            temp = file.flag
+            if os.path.exists(a):
+                print("11111111111111111111")
+                file.__init__(file_path, a)     
 
-                    
-                file._initialize_piece_states()
-                print("bhjdfbgvjhsdbjhkgvfrbdsjhtgvb") 
+            elif  os.path.exists(b):
+                print("22222222222222222222")
+                file.__init__(file_path, b) 
+            else:
+                print("]]]]]]]]]]]]]]]]]]]]]]]]]]]")
+            file.flag = temp
+
+
+            file._initialize_piece_states()
+            print("bhjdfbgvjhsdbjhkgvfrbdsjhtgvb") 
+
         except Exception as e:
                 print(f"Error create_or_update_bfm: {e}")  
 
@@ -581,7 +599,7 @@ class peer:
             file = self.find_file_obj(infohash)
             bfm = f"bfm:{infohash}:{file.bitFieldMessage}"
             conn.sendall(bfm.encode(CODE))
-            time.sleep(0.01)
+            time.sleep(0.1)
         except Exception as e:
                 print(f"Error send_bfm: {e}")  
                 
@@ -649,13 +667,9 @@ class peer:
                 
                 request_message = f"download:{hashcode}:{pieceindex}:{offset}"
                 peer_socket.sendall(request_message.encode(CODE))
-                time.sleep(0.01)
+                time.sleep(0.1)
 
-                self.sent_requests_queue.put({
-                    "hashcode": hashcode,
-                    "pieceindex": pieceindex,
-                    "offset": offset
-                })
+
 
     
             except socket.timeout:
@@ -692,13 +706,14 @@ class peer:
                 data_to_send  = f.read(BLOCK_LENGTH)
                 data_length = len(data_to_send)
 
-            
-            header = f"block:{hash_code}:{pieceindex}:{offset}:{data_length}"     
+            header = f"block:{hash_code}:{pieceindex}:{offset}:{data_length}"
+  
             message = header.encode(CODE) + b"\n" + data_to_send
-
+            print(f"sizeheader{len(header.encode(CODE))}")
+            print(f"vbnbnbnvbnvbvnbvnvb{len(message)}")
             conn.sendall(message)
-            time.sleep(0.01)
-            print(f"Sent piece {pieceindex} (offset: {offset}, length: {data_length}) to client.")
+            time.sleep(0.1)
+            print(f"Sent piece {pieceindex} (offset: {offset}, length: {len(data_to_send)}) to client.")
 
         except FileNotFoundError:
             print(f"piece for hash_code {hash_code} and pieceindex {pieceindex} not found.")
@@ -715,8 +730,10 @@ class peer:
             File_name = file.meta_info.fileName
             Folder_path = os.path.join(File_Share_Folder, os.path.splitext(File_name)[0])
             piece_path = os.path.join(Folder_path, f"piece{PieceIndex}")
-
-            if len(Data) != Length:
+            if not os.path.exists(piece_path):
+                with open(piece_path, "wb") as file:
+                    pass  # Tạo file rỗng nếu chưa có
+            if len(Data) != int(Length):
                 raise ValueError(f"Data length mismatch: expected {Length}, got {len(Data)}")
 
             with open(piece_path, "r+b") as file:
@@ -776,7 +793,7 @@ class peer:
         header = "disconnect:"
         message = header.encode(CODE)
         conn.sendall(message)
-        time.sleep(0.01)
+        time.sleep(0.1)
         print(f"Disconnect requested to Tracker ({server_host}:{server_port}).")
         
     def disconnect_from_peer(self, peer_ip, peer_port):
@@ -790,7 +807,7 @@ class peer:
         header = "disconnect:"
         message = header.encode(CODE)
         conn.sendall(message)
-        time.sleep(0.01)
+        time.sleep(0.1)
         print(f"Disconnect requested to peer ('{peer_ip}', {peer_port}).")
 
     def disconnect_from_all_peers(self):
@@ -833,7 +850,7 @@ class peer:
                 header += pickle.dumps(metainfo_dict)
                 file.sentMetaInfo = True
                 conn.sendall(header)
-                time.sleep(0.01)
+                time.sleep(0.1)
                 print(f"Sent Metainfo for {metainfo.fileName} to tracker.")
             except Exception as e:
                 print(f"Failed to send Metainfo for {metainfo.fileName} to tracker: {e}")
@@ -859,7 +876,7 @@ class peer:
             header = "find_peer_have:".encode(CODE)
             header += pickle.dumps(hash_info)
             conn.sendall(header)
-            time.sleep(0.01)
+            time.sleep(0.1)
             
         except Exception as e:
             print(f"Failed to ask for tracker to find peer list with magnet text {hash_info}.: {e}")
