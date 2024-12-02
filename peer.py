@@ -199,7 +199,7 @@ class peer:
         header = "update_client_list:"
         message = header.encode(CODE)
         conn.sendall(message)
-        time.sleep(0.01)
+        time.sleep(0.1)
 
 
         print(f"Client list requested to Tracker ({server_host}:{server_port}).")     
@@ -265,7 +265,12 @@ class peer:
                         self.send_infohash(peer_ip, peer_port, hashcode) 
                         
                     
-                    
+                    for peer_ip, peer_port in peer_list:
+
+                        if not any(peer_ip == flag[0] for flag in downloadFile.flag):
+                            downloadFile.flag.append([peer_ip, False]) 
+
+
                     download = self.wait_for_mapping_size(hashcode, peer_list)
                     
                     self.create_or_update_bfm(hashcode)
@@ -276,22 +281,73 @@ class peer:
                     threads = []    
                     for u in downloadFile.piece_idx_not_downloaded:
                         print(f"cccccccccc{u}")
+
                     while downloadFile.piece_idx_not_downloaded != []:
                         #with self.lock():
-                            print("88888888888888888888888888888")
-                            plan_download = self.rarest_first_with_blocks(downloadFile.bitFieldMessage, downloadFile.meta_info.numOfPieces, PIECE_LENGTH, BLOCK_LENGTH)
-                            print(f"plannnnnnnnnnnnnnnnn:{plan_download}")
-                            for peer_ip, peer_port in peer_list:
-                                for plan in plan_download:
+                        plan_download = self.rarest_first_with_blocks(downloadFile.bitFieldMessage, downloadFile.meta_info.numOfPieces, PIECE_LENGTH, BLOCK_LENGTH, downloadFile.meta_info_from_torrent.length)
+                        print(f"plannnnnnnnnnnnnnnnn:{plan_download}")
+                        break_out = False
+                        print("11111111111111111111111111")
+                        for flag in downloadFile.flag:
+                            print(flag)  
+                        for peer_ip, peer_port in peer_list:
+                            print("22222222222222222222222222222")
+                            break_out = False
+                            for plan in plan_download:
+                                print("33333333333333333333333333333")
+                                if break_out:  # Nếu cờ được kích hoạt, thoát khỏi vòng lặp trong
+                                        break
+                                else:
                                     piece_index = plan["piece"]
+                                    print("44444444444444444444444444444")
                                     for block_index, peer_ip2 in plan["block_to_peer"].items():
+                                        print(f"55555555555555555555555555555{block_index}:{peer_ip2}")
                                         if peer_ip == peer_ip2:
-                                            if not any(req[0] == hashcode and req[1] == piece_index and req[2] == block_index * BLOCK_LENGTH for req in self.sent_requests_queue):
+                                            print("66666666666666666666666666666")
+                                            temp_list = list(self.sent_requests_queue.queue)
+                                            print("77777777777777777777777777777")
+                                            print(f"Size of temp_list: {len(temp_list)}")
+                                            print(f"Size of queue: {self.sent_requests_queue.qsize()}")
+                                            for ret in temp_list:
+                                                print(f"obamaaaaaaaaaaaaaa{ret}")
+                                                print(f"vuiiiiiiiiiiiiiiiiiiii{hashcode}")
+                                                print(f"vuiiiiiiiiiiiiiiiiiiii{piece_index}")
+                                                print(f"scripppppppppp{block_index * BLOCK_LENGTH}")
+
+                                            if not any(req['hashcode'] == hashcode and req['pieceindex'] == piece_index and req['offset'] == block_index * BLOCK_LENGTH for req in temp_list):
+                                                print("88888888888888888888888888888")
+                                                print(f"tytyty{peer_ip}")
+                                                for flag in downloadFile.flag:
+                                                    print(f"tytyty{flag}")
+                                                #print("toiodaytoioday")
+                                                flag = None
+                                                #print(flag)
+                                                while flag is None or flag:  # Chờ đến khi flag là False
+                                                    flag = next((f[1] for f in downloadFile.flag if f[0] == peer_ip), None)
+                                                    time.sleep(0.1) 
+                                                    print(flag)
+                                                #if flag is not None and not flag:  # Nếu flag là False
                                                 thread = threading.Thread(target=self.download_block, args=(peer_ip, peer_port, hashcode, piece_index, block_index * BLOCK_LENGTH ))
+                                                with self.lock:
+                                                    print("messiuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu")
+                                                    self.sent_requests_queue.put({
+                                                        "hashcode": hashcode,
+                                                        "pieceindex": piece_index,
+                                                        "offset": block_index * BLOCK_LENGTH
+                                                    })
+                                                with self.lock:
+                                                    downloadFile.update_flag(peer_ip)
+                                                for flag in downloadFile.flag:
+                                                    print(f"tytyty222222{flag}")
                                                 threads.append(thread)
-                                                thread.start()                   
-                            for thread in threads:
-                                thread.join()
+                                                thread.start()   
+                                                #time.sleep(2)  
+                                                break_out = True
+                                                break   
+                                            else:
+                                                print("yessirrrrrrrrrrrrrrrrrrrrrrrrrrrrrr")
+                                                continue    
+
 
                       
     ##TODO TIẾN TRÌNH CHÍNH Ở TRÊN
@@ -317,7 +373,7 @@ class peer:
         # Send client port separately
         string_client_port = str(self.portForPeer)
         tracker_socket.sendall(string_client_port.encode(CODE))
-        time.sleep(0.01) # SPE: neighbour sendall()
+        time.sleep(0.1) # SPE: neighbour sendall()
 
         # Create thread
         thread_tracker = Thread(target=self.new_conn_tracker, args=(tracker_socket, server_host, server_port))
