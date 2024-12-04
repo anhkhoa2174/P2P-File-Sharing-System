@@ -36,7 +36,7 @@ class peer:
         self.peerSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.peerSocket.bind((self.peerIP, self.portForPeer))
         self.file_info_array = []   # mang chua cac mapping cua bitfield message
-
+        
 
         print(f"A peer with IP address {self.peerIP}, ID {self.portForTracker} has been created")
 
@@ -46,7 +46,7 @@ class peer:
         self.connected_tracker_conn_list = []
         self.connected_tracker_addr_list = []
         self.new_conn_thread_list = []
-
+        
         self.sent_requests_queue = queue.Queue() 
 
     @property # This creates an own respo for peer to save metainfo file
@@ -123,14 +123,13 @@ class peer:
                 else:
                     # Add the file to fileInRes and mark it as processed
                     file_obj = File(file_path, "")
+                
                     self.fileInRes.append(file_obj)
                     self.processedFileName.append(name)
                     
-                    
-    
                     self.save_metainfo_to_txt(file_obj.meta_info)
-                    with self.lock:
-                        file_obj.split_file(name, file_obj.meta_info.length, PIECE_LENGTH)
+                    with self.lock:   
+                        file_obj.split_file(name, file_obj.meta_info.length, 512 * 1024)
                     
                     if file_obj.meta_info_from_torrent.info_hash == None:
                         # Testing creating metainfo
@@ -142,16 +141,16 @@ class peer:
                         file_obj.meta_info_from_torrent.pieces = file_obj.meta_info.pieces
                         file_obj.meta_info_from_torrent.info_hash = file_obj.meta_info.info_hash
                         file_obj.meta_info_from_torrent.numOfPieces = file_obj.meta_info.numOfPieces
-                        file_obj.meta_info_from_torrent.filePath = f"{self.peerOwnRes}" + f"{file_obj.meta_info_from_torrent.fileName}"
+                        file_obj.meta_info_from_torrent.filePath = f"{self.peerOwnRes}"+f"{file_obj.meta_info_from_torrent.fileName}"
                         
                         with self.lock:
                             file_obj._initialize_piece_states()
 
                     file_obj.print_file_information()  # For testing
 
+               
 
         return self.fileInRes
-    
     
     def save_metainfo_to_txt(self, metainfo):
         # The path to txt file that saves metainfo of a specific file
@@ -265,91 +264,87 @@ class peer:
                         self.send_infohash(peer_ip, peer_port, hashcode) 
                         
                     
+                    
                     for peer_ip, peer_port in peer_list:
 
                         if not any(peer_ip == flag[0] for flag in downloadFile.flag):
-                            downloadFile.flag.append([peer_ip, False]) 
-
-
+                            downloadFile.flag.append([peer_ip, False])  
+                                 
+                            
                     download = self.wait_for_mapping_size(hashcode, peer_list)
-                    
+                 
                     self.create_or_update_bfm(hashcode)
-
+                 
                     if download:
                         print(f"bat dau download")
-
+                  
                     threads = []    
                     for u in downloadFile.piece_idx_not_downloaded:
                         print(f"cccccccccc{u}")
-
+                        
                     while downloadFile.piece_idx_not_downloaded != []:
-                        #with self.lock():
-                        plan_download = self.rarest_first_with_blocks(downloadFile.bitFieldMessage, downloadFile.meta_info.numOfPieces, PIECE_LENGTH, BLOCK_LENGTH, downloadFile.meta_info_from_torrent.length)
-                        print(f"plannnnnnnnnnnnnnnnn:{plan_download}")
+                        plan_download = self.rarest_first_with_blocks(downloadFile.bitFieldMessage, downloadFile.meta_info.numOfPieces, PIECE_LENGTH, BLOCK_LENGTH, downloadFile.meta_info_from_torrent.length, downloadFile.meta_info_from_torrent.info_hash)
                         break_out = False
-                        print("11111111111111111111111111")
                         for flag in downloadFile.flag:
                             print(flag)  
                         for peer_ip, peer_port in peer_list:
-                            print("22222222222222222222222222222")
-                            break_out = False
-                            for plan in plan_download:
-                                print("33333333333333333333333333333")
-                                if break_out:  # Nếu cờ được kích hoạt, thoát khỏi vòng lặp trong
+                                break_out = False
+                                for plan in plan_download:
+                             
+                                    if break_out:  
                                         break
-                                else:
-                                    piece_index = plan["piece"]
-                                    print("44444444444444444444444444444")
-                                    for block_index, peer_ip2 in plan["block_to_peer"].items():
-                                        print(f"55555555555555555555555555555{block_index}:{peer_ip2}")
-                                        if peer_ip == peer_ip2:
-                                            print("66666666666666666666666666666")
-                                            temp_list = list(self.sent_requests_queue.queue)
-                                            print("77777777777777777777777777777")
-                                            print(f"Size of temp_list: {len(temp_list)}")
-                                            print(f"Size of queue: {self.sent_requests_queue.qsize()}")
-                                            for ret in temp_list:
-                                                print(f"obamaaaaaaaaaaaaaa{ret}")
-                                                print(f"vuiiiiiiiiiiiiiiiiiiii{hashcode}")
-                                                print(f"vuiiiiiiiiiiiiiiiiiiii{piece_index}")
-                                                print(f"scripppppppppp{block_index * BLOCK_LENGTH}")
+                                    else:
+                                        piece_index = plan["piece"]
+                               
+                                        for block_index, peer_ip2 in plan["block_to_peer"].items():
+                                           
+                                            if peer_ip == peer_ip2:
+                                         
+                                                temp_list = list(self.sent_requests_queue.queue)
+                                          
+                                                    
+                                                #if not any(req['hashcode'] == hashcode and req['pieceindex'] == piece_index and req['offset'] == block_index * BLOCK_LENGTH for req in temp_list):
+                                                if not any(req['hashcode'] == hashcode and
+                                                           req['pieceinfo'] and
+                                                           req['pieceinfo']['pieceindex'] == piece_index and
+                                                           req['pieceinfo']['offset'] == block_index * BLOCK_LENGTH
+                                                           for req in temp_list):   
+                                                         
+                                                    print(f"tytyty{peer_ip}")
+                                                    for flag in downloadFile.flag:
+                                                        print(f"tytyty{flag}")
+                                             
+                                                    flag = None
+                                          
+                                                    while flag is None or flag:  # Chờ đến khi flag là False
+                                                        flag = next((f[1] for f in downloadFile.flag if f[0] == peer_ip), None)
+                                                        time.sleep(0.1) 
+                                                        print(flag)
+                                                    thread = threading.Thread(target=self.download_block, args=(peer_ip, peer_port, hashcode, piece_index, block_index * BLOCK_LENGTH ))
+                                                    with self.lock:
+                    
+                                                        self.sent_requests_queue.put({
+                                                            "hashcode": hashcode,
+                                                            "pieceinfo": {
+                                                                "pieceindex": piece_index,
+                                                                "offset": block_index * BLOCK_LENGTH
+                                                            }
+                                                        })
+                                                    with self.lock:
+                                                        downloadFile.update_flag(peer_ip)
+                                                    for flag in downloadFile.flag:
+                                                        print(f"tytyty222222{flag}")
+                                                    threads.append(thread)
+                                                    thread.start()   
+                                                    #time.sleep(2)  
+                                                    break_out = True
+                                                    break   
+                                                else:
+        
+                                                    continue    
 
-                                            if not any(req['hashcode'] == hashcode and req['pieceindex'] == piece_index and req['offset'] == block_index * BLOCK_LENGTH for req in temp_list):
-                                                print("88888888888888888888888888888")
-                                                print(f"tytyty{peer_ip}")
-                                                for flag in downloadFile.flag:
-                                                    print(f"tytyty{flag}")
-                                                #print("toiodaytoioday")
-                                                flag = None
-                                                #print(flag)
-                                                while flag is None or flag:  # Chờ đến khi flag là False
-                                                    flag = next((f[1] for f in downloadFile.flag if f[0] == peer_ip), None)
-                                                    time.sleep(0.1) 
-                                                    print(flag)
-                                                #if flag is not None and not flag:  # Nếu flag là False
-                                                thread = threading.Thread(target=self.download_block, args=(peer_ip, peer_port, hashcode, piece_index, block_index * BLOCK_LENGTH ))
-                                                with self.lock:
-                                                    print("messiuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu")
-                                                    self.sent_requests_queue.put({
-                                                        "hashcode": hashcode,
-                                                        "pieceindex": piece_index,
-                                                        "offset": block_index * BLOCK_LENGTH
-                                                    })
-                                                with self.lock:
-                                                    downloadFile.update_flag(peer_ip)
-                                                for flag in downloadFile.flag:
-                                                    print(f"tytyty222222{flag}")
-                                                threads.append(thread)
-                                                thread.start()   
-                                                #time.sleep(2)  
-                                                break_out = True
-                                                break   
-                                            else:
-                                                print("yessirrrrrrrrrrrrrrrrrrrrrrrrrrrrrr")
-                                                continue    
-
-
-                      
+                        
+                    
     ##TODO TIẾN TRÌNH CHÍNH Ở TRÊN
                         
             except socket.timeout:
@@ -364,8 +359,8 @@ class peer:
         print(f"Tracker ('{server_host}', {server_port}) disconnected.")
 
 
-
-
+            
+            
     def connect_to_tracker(self, server_host, server_port):
         try:
             tracker_socket = socket.socket()
@@ -405,8 +400,8 @@ class peer:
                 
                 elif command == "download":
                     message = data[(data.find(b":") + 1):].decode(CODE)
-
-
+        
+                
                     try:
                         hashcode, pieceindex, offset = message.split(":",2)
                         print(f"Received request download from peer ({peer_ip}:{peer_port})")
@@ -417,41 +412,43 @@ class peer:
                         self.send_block(peer_socket, hashcode, int(pieceindex), int(offset))
                     except ValueError as e:
                         print(f"Malformed message from peer: {e}")
-
+                                
                 elif command == "block":
                     print(f"allsize{len(data)}")
                     message = data[(data.find(b":") + 1):]
                     header, received_data = message.split(b"\n", 1)
                     print(f"sizeheader{len(header)}")
-                    header = header.decode(CODE)   
-
+                    header = header.decode(CODE)
+                    
                     hashcode, pieceindex, offset, datalength = header.split(":")
                     pieceindex = int(pieceindex)
                     offset = int(offset)
-                    #datalength = int(datalength)      
-
+                    #datalength = int(datalength)
+                    
                     print(f"Received block from peer ({peer_ip}:{peer_port}):")
                     print(f"  Hashcode: {hashcode}")
                     print(f"  Piece Index: {pieceindex}")
                     print(f"  Offset: {offset}")
                     print(f"  Data Length: {datalength}")
                     print(f"jjjjjjjjjjjjjjjjj666666666666{len(received_data)}")
-
+                    
                     self.receive_block(hashcode, pieceindex, offset, datalength, received_data)
                     with self.lock:
                         self.create_or_update_bfm(hashcode)
-                    
+                        
                         file = self.find_file_obj(hashcode)
                         print
                     with self.lock:    
                         file.update_flag(peer_ip)
-
-
+                        
+                    
                 elif command == "info":
                     info_hash = data[(data.find(b":") + 1):].decode(CODE)
                     print(f"Received info_hash '{info_hash}' from peer ({peer_ip}:{peer_port})")
-                    self.send_bfm(peer_socket, info_hash)
+                  
                     self.create_or_update_bfm(info_hash)
+                    self.send_bfm(peer_socket, info_hash)
+                    
                 elif command == "bfm":
                     try:
                         bfm = data[(data.find(b":") + 1):].decode(CODE)
@@ -544,56 +541,48 @@ class peer:
             print(f"Sent successful infohash to {peer_ip}:{peer_port}") 
         except Exception as e:
             print(f"Error sending infohash: {e}")  
-            
-
-
-
+    
+    
     def create_or_update_bfm(self, infohash):
         try:
-            print("gggggggggggggggggggg")
             file_share_folder = self.get_file_share_folder()
-   
+            
             file = self.find_file_obj(infohash)
             file_name = file.meta_info_from_torrent.fileName
-
+                    
             file_folder = os.path.join(file_share_folder, os.path.splitext(file_name)[0])
             if not os.path.exists(file_folder):
                 os.makedirs(file_folder)  
-            print(f"pppppppppppppppppppppppp{file_folder}")
             #with self.lock:    
-            print(f"ddddddddddddddddddddddddddddd")
             self.merge_file_with_padding(file_name, file.meta_info_from_torrent.length)
-          
-            file_path = os.path.join(file_folder,file_name)
-            print(f"vvvvvvvvvvvvvvvvvvvvvvvvvvvvv{file_folder}")        
+                     
+            file_path = os.path.join(file_folder,file_name)       
             if not os.path.exists(file_path) :
                 print('Chua merge file ma doi lam, lam ccccccccccccccccc')
             #with self.lock:
-            print(f"tttttttttttttttttttttttt{file_path}")
-
+    
+                  
             a = file.meta_info_from_torrent.filePath
             b = f"{self.peerOwnRes}"+f"{file.meta_info_from_torrent.fileName}"
-
-            print(f"rrrrrrrrrrrrrrrrrrrrrr4")
+            
+      
             temp = file.flag
             if os.path.exists(a):
-                print("11111111111111111111")
-                file.__init__(file_path, a)     
-
+                file.__init__(file_path, a) 
+                
             elif  os.path.exists(b):
-                print("22222222222222222222")
                 file.__init__(file_path, b) 
             else:
                 print("]]]]]]]]]]]]]]]]]]]]]]]]]]]")
             file.flag = temp
-
-
+                    
+                    
             file._initialize_piece_states()
-            print("bhjdfbgvjhsdbjhkgvfrbdsjhtgvb") 
 
+            
         except Exception as e:
                 print(f"Error create_or_update_bfm: {e}")  
-
+            
     def send_bfm(self, conn, infohash):   
         try:               
             file = self.find_file_obj(infohash)
@@ -605,53 +594,50 @@ class peer:
                 
                 
     def merge_file_with_padding(self, file_name, total_size):
-        print("yyyyyyyyyyyyyyyyyyyyyyyyyyyyy")
         file_share_folder = self.get_file_share_folder()
-
+        
         if not os.path.exists(file_share_folder):
             print("Fileshare' folder does not exist")
             return None
 
         folder = os.path.join(file_share_folder, os.path.splitext(file_name)[0])
         if not os.path.exists(folder) or not os.path.isdir(folder):
-            print(f"hhhhhhhhhhhhhhhhhhhhhhhhhhhhh{folder}")
             print(f"Folder '{file_name}' not found in 'Fileshare'.")
             return None
         
         # Tạo đường dẫn cho file hợp nhất
         merged_file_path = os.path.join(folder, file_name)
-        print("qqqqqqqqqqqqqqqqqqqqqqqqqqqqq")
         try:
             if not os.path.exists(merged_file_path):
                 with open(merged_file_path, 'wb') as merged_file:
                     merged_file.truncate(total_size)  # Tạo file với kích thước `total_size`
             else:
                 print(f"File '{file_name}' already exists. Merging directly.")
-
+                
             # Ghi dữ liệu từng piece vào đúng vị trí
             num_pieces = (total_size + PIECE_LENGTH - 1) // PIECE_LENGTH
-            print(f"eeeeeeeeeeeeeeeeeeeeeeeeeee{num_pieces}")
             for piece_index in range(0, num_pieces ): 
                 piece_name = f"piece{piece_index}"
                 piece_path = os.path.join(folder, piece_name)
                 offset = (piece_index) * PIECE_LENGTH  
                 
                 if os.path.exists(piece_path):  
-                    print(f"Writing '{piece_name}' to merged file at offset {offset}...")
+                    #print(f"Writing '{piece_name}' to merged file at offset {offset}...")
                     with open(piece_path, 'rb') as piece_file:
                         piece_data = piece_file.read()  
                         
                         with open(merged_file_path, 'r+b') as merged_file:
                             merged_file.seek(offset)
                             merged_file.write(piece_data)
-                else:
-                    print(f"'{piece_name}' not found. Leaving empty at offset {offset}.")
+                # else:
+                #     print(f"'{piece_name}' not found. Leaving empty at offset {offset}.")
             
             print(f"File '{file_name}' has been successfully merged with padding at: {merged_file_path}")
         except Exception as e:
             print(f"An error occurred while merging files: {e}")
              
         #print(f"fileName:{downloadFile.meta_info_from_torrent.fileName}")
+        
         
         
     def download_block(self, peer_ip, peer_port, hashcode, pieceindex, offset):
@@ -668,35 +654,34 @@ class peer:
                 request_message = f"download:{hashcode}:{pieceindex}:{offset}"
                 peer_socket.sendall(request_message.encode(CODE))
                 time.sleep(0.1)
-
-
-
-    
+                
+            
+                
             except socket.timeout:
                 print(f"Request to {peer_ip}:{peer_port} timed out.")
             except Exception as e:
                 print(f"Error requesting piece: {e}")  
                 
-    
-    
+
+
     def find_file_obj(self, hashcode):
         for file in self.fileInRes:
             if file.meta_info_from_torrent.info_hash == hashcode:
                 return file 
-
+            
         raise Exception(f"File with hashcode '{hashcode}' not found in the resource list.")
-
         
-
       
+                
+                
     def send_block(self, conn, hash_code, pieceindex, offset):
-
+        
         try:
             file = self.find_file_obj(hash_code)
             if not file:
                 print(f"File for hash_code {hash_code} not found.")
                 return
-
+            
             File_name = file.meta_info.fileName
             Folder_path = os.path.join(self.get_file_share_folder(), os.path.splitext(File_name)[0])
             Piece_path = os.path.join(Folder_path, f"piece{pieceindex}")
@@ -705,9 +690,9 @@ class peer:
                 f.seek(offset)
                 data_to_send  = f.read(BLOCK_LENGTH)
                 data_length = len(data_to_send)
-
+            
             header = f"block:{hash_code}:{pieceindex}:{offset}:{data_length}"
-  
+            
             message = header.encode(CODE) + b"\n" + data_to_send
             print(f"sizeheader{len(header.encode(CODE))}")
             print(f"vbnbnbnvbnvbvnbvnvb{len(message)}")
@@ -721,8 +706,8 @@ class peer:
             conn.sendall(error_message.encode(CODE))
         except Exception as e:
             print(f"Error sending piece {pieceindex} (offset: {offset}) for hash_code {hash_code}: {e}")
-
-                   
+            
+        
     def receive_block (self, hashcode, PieceIndex, Offset, Length, Data):
         try:
             File_Share_Folder = self.get_file_share_folder()
@@ -735,11 +720,11 @@ class peer:
                     pass  # Tạo file rỗng nếu chưa có
             if len(Data) != int(Length):
                 raise ValueError(f"Data length mismatch: expected {Length}, got {len(Data)}")
-
+            
             with open(piece_path, "r+b") as file:
                 file.seek(Offset)  
                 file.write(Data)  
-
+            
             print(f"\npiece '{PieceIndex}' received successfully.")
 
         except FileNotFoundError as e:
@@ -747,7 +732,7 @@ class peer:
         except ValueError as e:
             print(f"Data error: {e}")
         except Exception as e:
-            print(f"Error in receive_block: {e}")  
+            print(f"Error in receive_block: {e}")   
             
     def client_program(self):
         print(f"Peer IP: {self.peerIP} | Peer Port: {self.portForPeer}")
@@ -886,10 +871,10 @@ class peer:
     #Merge a file received
     def merge_piece(self, file_name):
         import os
-
+        
         file_have_folder = self.get_peer_respo_folder()
         file_share_folder = self.get_file_share_folder()
-
+        
         # Kiểm tra xem folder tên file có tồn tại trong Fileshare không
         folder_with_pieces = os.path.join(file_share_folder, os.path.splitext(file_name)[0])
         if not os.path.exists(folder_with_pieces) or not os.path.isdir(folder_with_pieces):
@@ -924,12 +909,12 @@ class peer:
         """Lấy đường dẫn đến thư mục peer_respo."""
         root_folder = os.getcwd() 
         file_have_folder = os.path.join(root_folder, "peer_respo")
-
+        
         if not os.path.exists(file_have_folder):
             print(f"'peer_respo' folder does not exist in the project root: {root_folder}")
             return None
         return file_have_folder
-
+    
     def get_file_share_folder(self):
         """Lấy đường dẫn đến thư mục FileShare."""
         root_folder = os.getcwd() 
@@ -938,10 +923,9 @@ class peer:
             print(f"'Fileshare' folder does not exist in the project root: {root_folder}")
             return None
         return file_share_folder
-
-
+    
     def rarest_first_with_blocks(self, my_bitfield, num_pieces, piece_size, block_size, total_file_size, hashcode):
-        # Tạo bảng đếm số lần xuất hiện của từng piece
+    # Tạo bảng đếm số lần xuất hiện của từng piece
         piece_count = [0] * num_pieces
         piece_to_peer_map = {i: [] for i in range(num_pieces)}
 
@@ -956,13 +940,24 @@ class peer:
                         piece_count[i] += 1
                         piece_to_peer_map[i].append(peer_ip)
 
-        # Lọc các pieces mà client A chưa có
+    # Lọc các pieces mà client A chưa có
         missing_pieces = [i for i, bit in enumerate(my_bitfield) if bit == '0']
-
+        
+        available_pieces = [i for i, bit in enumerate(my_bitfield) if bit == '1']
+        
+        
+        temp_list = list(self.sent_requests_queue.queue)
+        for request in temp_list:
+            if request['hashcode'] == hashcode:
+                if request['pieceinfo']['pieceindex'] in available_pieces:
+                    with self.lock:
+                        self.sent_requests_queue.queue.remove(request)  
+                    
+                    
         # Sắp xếp các pieces theo độ hiếm (rarest first)
         rarest_pieces = sorted(missing_pieces, key=lambda x: piece_count[x])
 
-        # Gán blocks cho các peers
+    # Gán blocks cho các peers
         download_plan = []
         for piece in rarest_pieces:
             peers_with_piece = piece_to_peer_map[piece]
@@ -994,8 +989,7 @@ class peer:
 
         return download_plan
 
-    
-
+   
 if __name__ == "__main__":
     my_peer = peer()
     try:

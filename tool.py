@@ -3,7 +3,7 @@ from threading import Thread, Event
 import hashlib
 
 PIECE_LENGTH = 512 * 1024
-BLOCK_LENGTH = 1024 * 8
+BLOCK_LENGTH = 1024 * 4
 client_addr_list = [] # Current clients connected to Tracker
 CODE = 'utf-8'
 
