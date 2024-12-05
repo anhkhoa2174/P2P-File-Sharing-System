@@ -829,6 +829,7 @@ class peer:
 
     def shutdown_peer(self):
         stop_event.set()
+         
         for nconn in self.new_conn_thread_list:
             nconn.join(timeout=5)
         print("All threads have been closed.") 
@@ -1089,13 +1090,20 @@ if __name__ == "__main__":
             elif command == "send": #! WORKING ON THIS
                 my_peer.send_metainfo_to_tracker(server_host, server_port)
             elif command == "have": #! WORKING ON THIS
+                flag = True
                 torrent_path = input("Enter torrent path: ")
-                downloadfile = File("",torrent_path)
-                
+                downloadfile = File("",torrent_path)   
                 my_peer.fileInRes.append(downloadfile)
-                
+                        
                 hash_info = downloadfile.meta_info_from_torrent.info_hash
-                my_peer.find_peer_have(hash_info, server_host, server_port)
+                for file in my_peer.fileInRes:     
+                    if hash_info == file.meta_info_from_torrent.info_hash:
+                        flag = False
+                        print("The file you want already exists in the list, please try again")                             
+                        break
+                if flag:
+                    my_peer.find_peer_have(hash_info, server_host, server_port)
+                                
             elif command == "exit":
                 my_peer.disconnect_from_tracker(server_host, server_port)
                 my_peer.disconnect_from_all_peers()
@@ -1106,8 +1114,27 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\nThe Client Terminal interrupted by user. Exiting Client Terminal...")
     finally:
+        
         print("Client Terminal exited.")
-    
+        file_share_folder = my_peer.get_file_share_folder()
+        for filename in os.listdir(file_share_folder):
+            file_path = os.path.join(file_share_folder, filename)
+            try:
+                shutil.rmtree(file_path)
+
+            except Exception as e:
+                print(f"Failed to delete {file_path}: {e}")
+                
+        current_path = os.getcwd()
+        for item in os.listdir(current_path):
+            folder_path = os.path.join(current_path, item)
+ 
+            if os.path.isdir(folder_path) and item.startswith("my_own_respo_"):
+                try:
+                    shutil.rmtree(folder_path)
+                except Exception as e:
+                    print(f"Failed to delete {folder_path}: {e}")
+                    
     my_peer.shutdown_peer()
     peer_thread.join(timeout=5)
     sys.exit(0)
