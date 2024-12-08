@@ -50,9 +50,9 @@ class tracker:
     # New connection for connected client
     def new_conn_client(self, client_socket, client_ip, client_port):
         print(f"Connected to Client ('{client_ip}', {client_port}).")
-
-        client_socket.settimeout(5)
-        while not stop_event.is_set():
+        X= False
+        full_received_data = b""
+        while True:
             try:
                 data = client_socket.recv(4096)
                 if not data:
@@ -65,11 +65,31 @@ class tracker:
                     self.remove_client_info(client_ip,client_port)
                     break
                 elif command == "send_metainfo": #! WORKING ON THIS
-                    metainfo_data = pickle.loads(data[len("send_metainfo:"):])
+                    X= True
+                elif command == "stop_metainfo": #! WORKING ON THIS
+                
+                    received_data = full_received_data.decode(CODE)
+                    print(received_data)
+                    fields = received_data.split(":")
+                    metainfo_data = {
+                        'file_name': fields[0],
+                        'file_size': int(fields[1]),
+                        'piece_length': int(fields[2]),
+                        'pieces_list': fields[3].split(","),
+                        'pieces': fields[4],
+                        'num_of_pieces': int(fields[5]),
+                        'info_hash': fields[6]
+                    }
                     self.receive_metainfo(metainfo_data, client_ip, client_port)
+                    full_received_data = b""
+                    X= False
+                    
                 elif command == "find_peer_have":
                     pieces = pickle.loads(data[len("find_peer_have:"):])
                     self.find_peer_have(pieces, client_ip, client_port)
+                else :
+                    if X:
+                        full_received_data += data
             except socket.timeout:
                 continue
             except Exception as e:
@@ -86,6 +106,7 @@ class tracker:
         print(f"Tracker IP: {self.ip} | Tracker Port: {self.port}")
         print("Listening on: {}:{}".format(self.ip, self.port))
         serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        #serversocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         serversocket.settimeout(5)
 
         serversocket.bind((self.ip, self.port))
@@ -118,7 +139,7 @@ class tracker:
         print("Tracker server stopped.")
 
     def disconnect_from_client(self, client_ip, client_port):
-        if (client_ip, client_port) in self.client_addr_list:    #! ???????
+        if (client_ip, client_port) in client_addr_list:
             index = self.client_addr_list.index((client_ip, client_port))
             conn = self.client_conn_list[index]
         else:
