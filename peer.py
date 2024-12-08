@@ -849,22 +849,34 @@ class peer:
             if not file.sentMetaInfo:
             #if metainfo.fileName not in self.processedFileName:
           
-                metainfo_dict = {
-                    'file_name': metainfo.fileName,
-                    'file_size': metainfo.length,
-                    'piece_length': metainfo.pieceLength,
-                    'pieces_list': metainfo.piecesList,
-                    'pieces': metainfo.pieces,
-                    'num_of_pieces': metainfo.numOfPieces,
-                    'info_hash': metainfo.info_hash
-                }
-
+                
+                
+                metainfo_string = ":".join([
+                    metainfo.fileName,
+                    str(metainfo.length),
+                    str(metainfo.pieceLength),
+                    ",".join(metainfo.piecesList),  # Ghép danh sách `piecesList` bằng dấu phẩy
+                    metainfo.pieces,  # Giả sử đây là chuỗi, nếu không cần chuyển đổi thêm
+                    str(metainfo.numOfPieces),
+                    metainfo.info_hash  # Giả sử đây là chuỗi, nếu không cần chuyển đổi thêm
+                ])
                 try:
-                    header = "send_metainfo:".encode(CODE)
-                    header += pickle.dumps(metainfo_dict)
-                    file.sentMetaInfo = True
-                    conn.sendall(header)
-                    time.sleep(0.1)
+                    header = "send_metainfo:"
+                    conn.sendall(header.encode(CODE))
+                    time.sleep(0.1) 
+                    chunk_size = 4096
+                    num_chunks = len(metainfo_string) // chunk_size + (1 if len(metainfo_string) % chunk_size != 0 else 0)
+                    
+                    for i in range(num_chunks):
+                        chunk = metainfo_string[i * chunk_size: (i + 1) * chunk_size]
+                        encoded_data = chunk.encode(CODE)
+                        conn.sendall(encoded_data)
+                  
+                        time.sleep(0.1)
+                        
+                    footer = "stop_metainfo:"
+                    conn.sendall(footer.encode(CODE))
+                    time.sleep(0.1) 
                     print(f"Sent Metainfo for {metainfo.fileName} to tracker.")
                 except Exception as e:
                     print(f"Failed to send Metainfo for {metainfo.fileName} to tracker: {e}")
@@ -1093,7 +1105,6 @@ if __name__ == "__main__":
                 flag = True
                 torrent_path = input("Enter torrent path: ")
                 downloadfile = File("",torrent_path)   
-                my_peer.fileInRes.append(downloadfile)
                         
                 hash_info = downloadfile.meta_info_from_torrent.info_hash
                 for file in my_peer.fileInRes:     
@@ -1102,6 +1113,7 @@ if __name__ == "__main__":
                         print("The file you want already exists in the list, please try again")                             
                         break
                 if flag:
+                    my_peer.fileInRes.append(downloadfile)
                     my_peer.find_peer_have(hash_info, server_host, server_port)
                                 
             elif command == "exit":
