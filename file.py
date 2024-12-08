@@ -195,14 +195,14 @@ class File:
         if not os.path.exists(output_folder):
             os.makedirs(output_folder)
         else :
-            print(f"Chua split ma co folder nay, bip a")
+            #print(f"Chua split ma co folder nay, bip a")
             return None
 
         try:
             with open(file_path, "rb") as f: 
                 num_pieces = (file_size // piece_size) + (1 if file_size % piece_size != 0 else 0)  
                 
-                print(f"Splitting '{file_name}' into {num_pieces} pieces...")
+                #print(f"Splitting '{file_name}' into {num_pieces} pieces...")
                 
                 for i in range(num_pieces):
                     # Đặt tên cho từng piece
@@ -226,12 +226,13 @@ class File:
                             with open(piece_path, "wb") as piece_file:
                                 piece_file.write(piece_data)
                             
-                    print(f"Created: {piece_path}")
+                    #print(f"Created: {piece_path}")
             
-            print(f"File '{file_name}' has been split into {num_pieces} pieces stored in '{output_folder}'.")
+            #print(f"File '{file_name}' has been split into {num_pieces} pieces stored in '{output_folder}'.")
             return output_folder
         
         except Exception as e:
             print(f"Error splitting file '{file_name}': {e}")
             return None
         
+  
