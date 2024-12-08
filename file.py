@@ -1,9 +1,12 @@
-import os
+import socket
+import threading
 import math
 import tool
 import os
 from tool import *
 #from piece import *
+from threading import Thread
+from tool import *
 
 
 PIECE_LENGTH = 1024 * 512  # 16KB mỗi piece (tùy chỉnh theo nhu cầu)
@@ -17,7 +20,6 @@ def split_into_pieces(file_path, piece_length):
     with open(file_path, 'rb') as f:
         while True:
             piece = f.read(PIECE_LENGTH)
-            print("uuuuuuuuuuuuuuuuuuuuuuuuuuuu")
             if not piece:
                 break
             yield piece
@@ -75,7 +77,6 @@ class MetainfoTorrent:
         raise ValueError(f"Key '{key}' not found in the content.")
 
     def _parse_torrent_file(self, torrent_txt_path):
-        print("haaaaaaaaaaaaaaaaaaaaaaa")
         with open(torrent_txt_path, 'r') as f:
             content = f.read()
         
@@ -109,7 +110,7 @@ class File:
     def __init__(self, path, torrent_txt_path):
         self.meta_info = Metainfo(path)
         self.meta_info_from_torrent = MetainfoTorrent(torrent_txt_path)
-        
+        self.lock = threading.Lock()
         self.piece_idx_downloaded = []  
         self.piece_idx_not_downloaded = []
         self.downloadedBytes = self.meta_info.length if self.meta_info.length else 0
@@ -121,41 +122,38 @@ class File:
         
         
     def _initialize_piece_states(self):
-        self.piece_idx_downloaded = []  
-        self.piece_idx_not_downloaded = []
-        print(f"ggggggg{self.filePath}")
-        pieces_from_file = list(split_into_pieces(self.filePath, self.meta_info.pieceLength))
-        
-        print(f"meeeeeeeeeeeeeeeeeeeeeeeeeeee{len(pieces_from_file)}")
-        for idx, piece in enumerate(pieces_from_file):
-            print("Fengggggggggggggggggggggggggg")
-            print("aaaaaaaaaaaaaaaabbbbbbbbbbbbb")
-            piece_hash = sha1_hash(piece).hex()
-            if piece_hash in self.meta_info_from_torrent.pieces:
-                print(f"{idx}aaaaaaaaaaaaaa")
-                
-                self.piece_idx_downloaded.append(idx)
-            else:
-                print(f"{idx}bbbbbbbbbbbbbbbbbb")
-                self.piece_idx_not_downloaded.append(idx)
+        with self.lock:     
+            self.piece_idx_downloaded = ["placeholder"]  
+            self.piece_idx_not_downloaded = ["placeholder"]
+            pieces_from_file = list(split_into_pieces(self.filePath, self.meta_info.pieceLength))
+            
+            for idx, piece in enumerate(pieces_from_file):
+                piece_hash = sha1_hash(piece).hex()
+                if piece_hash in self.meta_info_from_torrent.pieces:
+                    
+                    self.piece_idx_downloaded.append(idx)
+                else:
+                    self.piece_idx_not_downloaded.append(idx)
 
-        self._create_bit_field_message()
+            self._create_bit_field_message()
+
+        self.piece_idx_downloaded.remove("placeholder")
+        self.piece_idx_not_downloaded.remove("placeholder")
         
     def update_flag(self, ip):
-        print("triettriettriet")
-    # Tìm kiếm trong danh sách flag
-        found = False
-        for flag in self.flag:
-            
-            if flag[0] == ip:
-                print("pineappplypineapply")
-                flag[1] = not flag[1]
-                print(f"todungkhang{flag[1]}")
-                found = True
-                return
+        with self.lock:  
+            found = False
+            for flag in self.flag:
+                
+                if flag[0] == ip:
+                # print("pineappplypineapply")
+                    flag[1] = not flag[1]
+                    #print(f"toooooooooooo{flag[1]}")
+                    found = True
+                    return
 
-        if not found:
-            self.flag.append([ip, False])  # Thêm phần tử mới nếu không tìm thấy IP trong danh sách
+            if not found:
+                self.flag.append([ip, False])  # Thêm phần tử mới nếu không tìm thấy IP trong danh sách
             
     def _create_bit_field_message(self):
         self.bitFieldMessage = []
