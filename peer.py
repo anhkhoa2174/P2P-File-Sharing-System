@@ -104,7 +104,7 @@ class peer:
             # Nếu điều kiện chưa thỏa mãn, chờ một thời gian ngắn trước khi thử lại
             time.sleep(1)  # Đợi 1 giây trước khi kiểm tra lại
 
-        print(f"Timeout reached. Bi loi r, nguuuuuuuuuuuuuuuuuuuuuu {hashcode}.")
+        #print(f"Timeout reached. Bi loi r, nguuuuuuuuuuuuuuuuuuuuuu {hashcode}.")
         return False
         
     def getFileInRes(self) -> list:
@@ -264,10 +264,10 @@ class peer:
             
     def handle(self, hashcode, peer_list):
         downloadFile = None
-        print(f"ppppppppppppp{hashcode}")
+        #print(f"ppppppppppppp{hashcode}")
         for file in self.fileInRes:
             
-            print(f"ppppppppppppp{file.meta_info_from_torrent.info_hash}")
+            #print(f"eeeeeeeeeeeeeeeee{file.meta_info_from_torrent.info_hash}")
             if file.meta_info_from_torrent.info_hash == hashcode:
                 
                 downloadFile = file
@@ -374,8 +374,8 @@ class peer:
                     shutil.move(file_path, Folder_FileHave)
                     print("file da dc move sang folder peer-respo thanh cong")
                     
-                    with self.lock:
-                        self.fileInRes.remove(downloadfile)
+                    # with self.lock:
+                    #     self.fileInRes.remove(downloadfile)
                     
                 except Exception as e:
                     print(f"Đã xảy ra lỗi không xác định sau khi tai file: {e}")
@@ -478,20 +478,14 @@ class peer:
                         
                         with self.lock:
                             self.add_or_update_file_info_array(infohash, peer_ip, bitFieldMessage)
-                            self.print_file_info_array()
+                            #self.print_file_info_array()
                         
                     except Exception as e:
                         print(f"Error processing bfm: {e}")
                     
-                elif command == "receive_file":
-                    data_receive = data[(data.find(b":") + 1):]
-                    self.receive_file(peer_socket, data_receive)
-                elif command == "not_receive_file":
-                    data_receive = data[(data.find(b":") + 1):].decode(CODE)
-                    print(f"{data_receive} from peer ({peer_ip}:{peer_port})")
                     
                 else:
-                    print(f"Unknown command received: {command}")                
+                    print(f"Unknown command received")                
             except socket.timeout:
                 continue
             except Exception as e:
@@ -575,9 +569,10 @@ class peer:
                 #with self.lock:    
                 self.merge_file_with_padding(file_name, file.meta_info_from_torrent.length)
                         
-                file_path = os.path.join(file_folder,file_name)       
-                if not os.path.exists(file_path) :
-                    print('Chua merge file ma doi lam, lam ccccccccccccccccc')
+                file_path = os.path.join(file_folder,file_name)   
+                    
+                #if not os.path.exists(file_path) :
+                    #print('Chua merge file ma doi lam, lam ccccccccccccccccc')
                 #with self.lock:
         
                     
@@ -684,8 +679,9 @@ class peer:
 
 
     def find_file_obj(self, hashcode):
-      
+        #print(f"yyyyyyyyyyyyyyyyyyyyyy{hashcode}")
         for file in self.fileInRes:      
+            #print(f"pppppppppppppppppppppp{file.meta_info_from_torrent.info_hash}")
             if file.meta_info_from_torrent.info_hash == hashcode:
                 return file 
         
