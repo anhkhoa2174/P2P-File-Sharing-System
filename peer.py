@@ -295,12 +295,12 @@ class peer:
                 self.create_or_update_bfm(hashcode)
                  
                 if download:
-                    print(f"bat dau download")
+                    print(f"Start downloading")
                   
                 threads = []    
                 
                 while downloadFile.piece_idx_not_downloaded != []:
-               
+                    #print("yyyyyyyyyyyyyyyyyyy")
                     plan_download = self.rarest_first_with_blocks(downloadFile.bitFieldMessage, downloadFile.meta_info.numOfPieces, PIECE_LENGTH, BLOCK_LENGTH, downloadFile.meta_info_from_torrent.length, downloadFile.meta_info_from_torrent.info_hash)
                    
                     break_out = False
@@ -345,7 +345,7 @@ class peer:
           
                 
                 try:
-                    print("Da download xong")     
+                    print(f"Finish downloading {downloadFile.meta_info.fileName} ")     
                     temp_list = list(self.sent_requests_queue.queue)
                     for request in temp_list:
                         if request['hashcode'] == hashcode:
@@ -364,15 +364,15 @@ class peer:
                     
                     file_folder = os.path.join(Folder_FileShare, os.path.splitext(downloadFile.meta_info.fileName)[0])
                     if not os.path.exists(file_folder):
-                        print("wtfffffffffffffffffffff1")  
+                        print("noooooooooooooooooo1")  
         
                     file_path = os.path.join(file_folder, downloadFile.meta_info.fileName)       
                     if not os.path.exists(file_path) :
-                        print('wtffffffffffffffffff2')
+                        print('nooooooooooooooooo2')
                     
                     
                     shutil.move(file_path, Folder_FileHave)
-                    print("file da dc move sang folder peer-respo thanh cong")
+                    print(f"Move {downloadFile.meta_info.fileName} to folder peer_respo")
                     
                     # with self.lock:
                     #     self.fileInRes.remove(downloadfile)
@@ -437,7 +437,8 @@ class peer:
 
                         self.send_block(peer_socket, hashcode, int(pieceindex), int(offset))
                     except ValueError as e:
-                        print(f"Malformed message from peer: {e}")
+                        #print(f"Malformed message from peer: {e}")
+                        print("")
                                 
                 elif command == "block":
                     #print(f"allsize{len(data)}")
@@ -484,13 +485,13 @@ class peer:
                         print(f"Error processing bfm: {e}")
                     
                     
-                else:
-                    print(f"Unknown command received")                
+                #else:
+                    #print(f"Unknown command received")                
             except socket.timeout:
                 continue
             except Exception as e:
-                print(f"Error occured!:{e}")
-                
+                #print(f"Error occured!:{e}")
+                print(f"")
                 #break
 
         peer_socket.close()
