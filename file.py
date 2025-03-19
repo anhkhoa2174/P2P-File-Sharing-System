@@ -146,9 +146,7 @@ class File:
             for flag in self.flag:
                 
                 if flag[0] == ip:
-                # print("pineappplypineapply")
                     flag[1] = not flag[1]
-                    #print(f"toooooooooooo{flag[1]}")
                     found = True
                     return
 
@@ -164,7 +162,6 @@ class File:
         print(f"Downloaded Pieces Index: {self.piece_idx_downloaded}")
         print(f"Not Downloaded Pieces Index: {self.piece_idx_not_downloaded}")
         print(f"Downloaded Bytes: {self.downloadedBytes}")
-        #print(f"Sent Meta Info: {self.sentMetaInfo}")
         print(f"Bitfield Message: {self.bitFieldMessage}")
         
     # split a file to share     
@@ -195,40 +192,31 @@ class File:
         if not os.path.exists(output_folder):
             os.makedirs(output_folder)
         else :
-            #print(f"Chua split ma co folder nay, bip a")
             return None
 
         try:
             with open(file_path, "rb") as f: 
                 num_pieces = (file_size // piece_size) + (1 if file_size % piece_size != 0 else 0)  
                 
-                #print(f"Splitting '{file_name}' into {num_pieces} pieces...")
-                
                 for i in range(num_pieces):
                     # Đặt tên cho từng piece
                     piece_path = os.path.join(output_folder, f"piece{i}")
                                  
                     if(file_size <= piece_size):
-                        #self.piece_List.append(piece(file_size, self.meta_info.pieces, self.filePath, piece_path))
                         piece_data = f.read(file_size)
                         with open(piece_path, "wb") as piece_file:
                             piece_file.write(piece_data)
                     else:     
                         if i < num_pieces-1:
-                            #self.piece_List.append(piece(piece_size, self.meta_info.piecesList[i], self.filePath, piece_path))
                             piece_data = f.read(piece_size)
                             with open(piece_path, "wb") as piece_file:
                                 piece_file.write(piece_data)
                         
                         else:
-                            #self.piece_List.append(piece(file_size - piece_size * num_pieces, self.meta_info.piecesList[i], self.filePath, piece_path))
                             piece_data = f.read(file_size - piece_size * (num_pieces-1))
                             with open(piece_path, "wb") as piece_file:
                                 piece_file.write(piece_data)
-                            
-                    #print(f"Created: {piece_path}")
-            
-            #print(f"File '{file_name}' has been split into {num_pieces} pieces stored in '{output_folder}'.")
+
             return output_folder
         
         except Exception as e:
