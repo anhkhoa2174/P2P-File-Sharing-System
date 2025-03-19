@@ -104,7 +104,6 @@ class peer:
             # Nếu điều kiện chưa thỏa mãn, chờ một thời gian ngắn trước khi thử lại
             time.sleep(1)  # Đợi 1 giây trước khi kiểm tra lại
 
-        #print(f"Timeout reached. Bi loi r, nguuuuuuuuuuuuuuuuuuuuuu {hashcode}.")
         return False
         
     def getFileInRes(self) -> list:
@@ -134,7 +133,6 @@ class peer:
                     
                     if file_obj.meta_info_from_torrent.info_hash == None:
                         # Testing creating metainfo
-                        #file_obj.meta_info_from_torrent = file_obj.meta_info
                         file_obj.meta_info_from_torrent.fileName = file_obj.meta_info.fileName
                         file_obj.meta_info_from_torrent.length = file_obj.meta_info.length
                         file_obj.meta_info_from_torrent.pieceLength = file_obj.meta_info.pieceLength
@@ -224,8 +222,7 @@ class peer:
                 elif command == "disconnect":
                     break
                 
-          ##TODO TIẾN TRÌNH CHÍNH Ở DƯỚI
-                if command == "peer_list": #! WORKING ON THIS 
+                if command == "peer_list": 
                     # Receive the clients list from the Tracker
                     separator_index = data.rfind(b":")
                     
@@ -244,11 +241,7 @@ class peer:
                     print(f"Peer list received: {peer_list}, hashcode:{hashcode}")
     
                     handle_thread = threading.Thread(target=self.handle, args=(hashcode, peer_list))
-                    handle_thread.start()
-                
-               
-    ##TODO TIẾN TRÌNH CHÍNH Ở TRÊN
-                        
+                    handle_thread.start()              
             except socket.timeout:
                 continue
             except Exception as e:
@@ -264,14 +257,9 @@ class peer:
             
     def handle(self, hashcode, peer_list):
         downloadFile = None
-        #print(f"ppppppppppppp{hashcode}")
         for file in self.fileInRes:
-            
-            #print(f"eeeeeeeeeeeeeeeee{file.meta_info_from_torrent.info_hash}")
             if file.meta_info_from_torrent.info_hash == hashcode:
-                
-                downloadFile = file
-                                
+                downloadFile = file          
                 for peer_ip, peer_port in peer_list:
                     connected = True
                     for peer_ip2, peer_port2 in self.connected_client_addr_list:
@@ -280,32 +268,22 @@ class peer:
                             break
                             
                     if connected:
-                        self.connect_to_peer(peer_ip, peer_port)
-                            
-                    self.send_infohash(peer_ip, peer_port, hashcode) 
-                           
+                        self.connect_to_peer(peer_ip, peer_port)           
+                    self.send_infohash(peer_ip, peer_port, hashcode)            
                 for peer_ip, peer_port in peer_list:
-
                     if not any(peer_ip == flag[0] for flag in downloadFile.flag):
-                        downloadFile.flag.append([peer_ip, False])  
-                                 
-                            
+                        downloadFile.flag.append([peer_ip, False])                       
                 download = self.wait_for_mapping_size(hashcode, peer_list)
-              
                 self.create_or_update_bfm(hashcode)
                  
                 if download:
                     print(f"Start downloading")
-                  
                 threads = []    
                 
                 while downloadFile.piece_idx_not_downloaded != []:
-                    #print("yyyyyyyyyyyyyyyyyyy")
                     plan_download = self.rarest_first_with_blocks(downloadFile.bitFieldMessage, downloadFile.meta_info.numOfPieces, PIECE_LENGTH, BLOCK_LENGTH, downloadFile.meta_info_from_torrent.length, downloadFile.meta_info_from_torrent.info_hash)
                    
                     break_out = False
-                    #for flag in downloadFile.flag:
-                        #print(flag)  
                     for peer_ip, peer_port in peer_list:
                         break_out = False
                         for plan in plan_download:
@@ -315,7 +293,7 @@ class peer:
                                 piece_index = plan["piece"]
                            
                                 flag = None
-                                while flag is None or flag:  # Chờ đến khi flag là False
+                                while flag is None or flag:  
                                     flag = next((f[1] for f in downloadFile.flag if f[0] == peer_ip), None)
                                     time.sleep(0.1) 
                                 for block_index, peer_ip2 in plan["block_to_peer"].items():
@@ -323,8 +301,6 @@ class peer:
                                     if peer_ip == peer_ip2:
                                          
                                         temp_list = list(self.sent_requests_queue.queue)
-                                                
-                                        #if not any(req['hashcode'] == hashcode and req['pieceindex'] == piece_index and req['offset'] == block_index * BLOCK_LENGTH for req in temp_list):
                                         if not any(req['hashcode'] == hashcode and
                                                     req['pieceinfo'] and
                                                     req['pieceinfo']['pieceindex'] == piece_index and
@@ -351,7 +327,6 @@ class peer:
                         if request['hashcode'] == hashcode:
                             with self.lock:
                                 self.sent_requests_queue.queue.remove(request)   
-                    #Xoa list            
                     for entry in self.file_info_array:
                         if entry['infohash'] == hashcode:
                             with self.lock:
@@ -373,18 +348,9 @@ class peer:
                     
                     shutil.move(file_path, Folder_FileHave)
                     print(f"Move {downloadFile.meta_info.fileName} to folder peer_respo")
-                    
-                    # with self.lock:
-                    #     self.fileInRes.remove(downloadfile)
-                    
                 except Exception as e:
                     print(f"Đã xảy ra lỗi không xác định sau khi tai file: {e}")
                     
-                
-                
-                            
-                           
-           
     def connect_to_tracker(self, server_host, server_port):
         try:
             tracker_socket = socket.socket()
@@ -414,7 +380,6 @@ class peer:
         peer_socket.settimeout(5)
         while not stop_event.is_set():
             try:
-                #data = peer_socket.recv(BLOCK_LENGTH *2, socket.MSG_WAITALL)
                 data = peer_socket.recv(BLOCK_LENGTH *4)
          
                 if not data:
@@ -441,16 +406,13 @@ class peer:
                         print("")
                                 
                 elif command == "block":
-                    #print(f"allsize{len(data)}")
                     message = data[(data.find(b":") + 1):]
                     header, received_data = message.split(b"\n", 1)
-                    #print(f"sizeheader{len(header)}")
                     header = header.decode(CODE)
                     
                     hashcode, pieceindex, offset, datalength = header.split(":")
                     pieceindex = int(pieceindex)
                     offset = int(offset)
-                    #datalength = int(datalength)
                                     
                     receive_thread = threading.Thread(target=self.receive_block, args=(hashcode, pieceindex, offset, datalength, received_data, peer_ip))
                     receive_thread.start()
@@ -479,20 +441,15 @@ class peer:
                         
                         with self.lock:
                             self.add_or_update_file_info_array(infohash, peer_ip, bitFieldMessage)
-                            #self.print_file_info_array()
                         
                     except Exception as e:
                         print(f"Error processing bfm: {e}")
                     
                     
-                #else:
-                    #print(f"Unknown command received")                
             except socket.timeout:
                 continue
             except Exception as e:
-                #print(f"Error occured!:{e}")
                 print(f"")
-                #break
 
         peer_socket.close()
         self.connected_client_conn_list.remove(peer_socket)
@@ -567,16 +524,10 @@ class peer:
                 file_folder = os.path.join(file_share_folder, os.path.splitext(file_name)[0])
                 if not os.path.exists(file_folder):
                     os.makedirs(file_folder)  
-                #with self.lock:    
                 self.merge_file_with_padding(file_name, file.meta_info_from_torrent.length)
                         
                 file_path = os.path.join(file_folder,file_name)   
-                    
-                #if not os.path.exists(file_path) :
-                    #print('Chua merge file ma doi lam, lam ccccccccccccccccc')
-                #with self.lock:
-        
-                    
+                      
                 a = file.meta_info_from_torrent.filePath
                 b = f"{self.peerOwnRes}"+f"{file.meta_info_from_torrent.fileName}"
                 
@@ -626,9 +577,7 @@ class peer:
             if not os.path.exists(merged_file_path):
                 with open(merged_file_path, 'wb') as merged_file:
                     merged_file.truncate(total_size)  # Tạo file với kích thước `total_size`
-            #else:
-                #print(f"File '{file_name}' already exists. Merging directly.")
-                
+
             # Ghi dữ liệu từng piece vào đúng vị trí
             num_pieces = (total_size + PIECE_LENGTH - 1) // PIECE_LENGTH
             for piece_index in range(0, num_pieces ): 
@@ -637,24 +586,15 @@ class peer:
                 offset = (piece_index) * PIECE_LENGTH  
                 
                 if os.path.exists(piece_path):  
-                    #print(f"Writing '{piece_name}' to merged file at offset {offset}...")
                     with open(piece_path, 'rb') as piece_file:
                         piece_data = piece_file.read()  
                         
                         with open(merged_file_path, 'r+b') as merged_file:
                             merged_file.seek(offset)
                             merged_file.write(piece_data)
-                # else:
-                #     print(f"'{piece_name}' not found. Leaving empty at offset {offset}.")
-            
-            #print(f"File '{file_name}' has been successfully merged with padding at: {merged_file_path}")
         except Exception as e:
             print(f"An error occurred while merging files: {e}")
              
-        #print(f"fileName:{downloadFile.meta_info_from_torrent.fileName}")
-        
-        
-        
     def download_block(self, peer_ip, peer_port, hashcode, pieceindex, offset):
             try:
                 if (peer_ip, peer_port) in self.connected_client_addr_list:
@@ -663,9 +603,6 @@ class peer:
                 else:
                     print(f"No connection found with peer {peer_ip}:{peer_port}.")
                     return
-                
-                #print(f"Requesting  'piece{pieceindex}' from peer {peer_ip}:{peer_port}..............")
-                
                 request_message = f"download:{hashcode}:{pieceindex}:{offset}"
                 peer_socket.sendall(request_message.encode(CODE))
                 time.sleep(0.1)
@@ -680,9 +617,7 @@ class peer:
 
 
     def find_file_obj(self, hashcode):
-        #print(f"yyyyyyyyyyyyyyyyyyyyyy{hashcode}")
         for file in self.fileInRes:      
-            #print(f"pppppppppppppppppppppp{file.meta_info_from_torrent.info_hash}")
             if file.meta_info_from_torrent.info_hash == hashcode:
                 return file 
         
@@ -711,11 +646,8 @@ class peer:
             header = f"block:{hash_code}:{pieceindex}:{offset}:{data_length}"
             
             message = header.encode(CODE) + b"\n" + data_to_send
-            #print(f"sizeheader{len(header.encode(CODE))}")
-            #print(f"vbnbnbnvbnvbvnbvnvb{len(message)}")
             conn.sendall(message)
             time.sleep(0.1)
-            #print(f"Sent piece {pieceindex} (offset: {offset}, length: {len(data_to_send)}) to client.")
 
         except FileNotFoundError:
             print(f"piece for hash_code {hash_code} and pieceindex {pieceindex} not found.")
@@ -741,8 +673,6 @@ class peer:
             with open(piece_path, "r+b") as file:
                 file.seek(Offset)  
                 file.write(Data)  
-            
-           # print(f"\npiece '{PieceIndex}' received successfully.")
           
             self.create_or_update_bfm(hashcode)
             
@@ -1055,16 +985,7 @@ if __name__ == "__main__":
             elif command.startswith("tr"):
                 server_host = "192.168.1.18" 
                 server_port = 22236 
-                # parts = command.split()
-                # if len(parts) == 3:
-                #     server_host = parts[1]
-                #     try:
-                #         server_port = int(parts[2])
                 my_peer.connect_to_tracker(server_host, server_port)
-                    # except ValueError:
-                    #     print("Invalid port.")
-                # else:
-                #     print("Usage: connect_tracker <IP> <Port>")
             elif command.startswith("disconnect_from_tracker"):
                 parts = command.split()
                 if len(parts) == 3:
