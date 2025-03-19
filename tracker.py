@@ -164,7 +164,7 @@ class tracker:
             nconn.join(timeout=5)
         print("All threads have been closed.")
 
-    def receive_metainfo(self, metainfo_dict, client_ip, client_port): #! WORKING ON THIS
+    def receive_metainfo(self, metainfo_dict, client_ip, client_port):
         print(f"Receiving  metainfo from client {client_ip}:{client_port}")
 
         try:
@@ -206,7 +206,6 @@ class tracker:
             with self.lock:
                 for client_key, client_hashcode in self.client_info.items():
                     if client_key[0] != client_ip :
-                    #print(f"{client_key} with {client_hashcode}") #! THIS IS ONLY USED FOR DEBUGGING, REMEMBER TO DELETE
                         if hashcode in client_hashcode:
                             peer_list.append(client_key) 
 
@@ -234,15 +233,13 @@ class tracker:
         except Exception as e:
             print(f"Failed to send peer list to {client_ip} : {client_port}: {e}")   
             
-    def remove_client_info(self, client_ip, client_port): #! WORKING ON THIS 
+    def remove_client_info(self, client_ip, client_port):
         try:
             # Locking client_info for thread safety
             with self.lock:
                 client_key = (client_ip, client_port)
                 if client_key in self.client_info:
                     del self.client_info[client_key]
-                    #! ONLY USED FOR DEBUGGING
-                    #print(f"Removed client_info for {client_key}.")
                 else:
                     print(f"Client {client_key} not found in client_info.")
         except Exception as e:
@@ -251,10 +248,6 @@ class tracker:
     def print_client_info(self):
         print(f"{self.client_info}")
         
-        
-
-
-
 
 if __name__ == "__main__":
 
